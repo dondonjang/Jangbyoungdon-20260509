@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "markets": [
+    {
+      "id": "market_kurly",
+      "slug": "kurly",
+      "companyName": "Kurly Corp.",
+      "displayName": "컬리",
+      "baseUrl": "https://www.kurly.com",
+      "apiBaseUrl": "https://api.kurly.com",
+      "renderingMode": "hybrid",
+      "botDetectionLevel": "low",
+      "botDetectionLogic": {
+        "level": "low",
+        "signals": [
+          "CloudFront/nginx edge response",
+          "session/device cookies are issued on API responses",
+          "product list API accepts unauthenticated direct GET requests in current verification"
+        ],
+        "knownRequirements": [
+          "Use conservative request rates",
+          "Keep origin URL and fetchedAt for auditability",
+          "Re-check endpoint shape when Next.js chunk version changes"
+        ],
+        "mitigationNotes": [
+          "Start with direct API calls and no proxy",
+          "Escalate to browser rendering only if API starts requiring browser-only headers or anti-bot tokens"
+        ]
+      },
+      "recommendedProxyStrategy": "direct-api",
+      "recommendedProxy": {
+        "strategy": "direct-api",
+        "reason": "PLP product JSON is available from api.kurly.com without a browser session during verification."
+      },
+      "requestPolicy": {
+        "userAgent": "MSA product research bot; contact owner before increasing crawl volume",
+        "requiredHeaders": {
+          "accept": "application/json"
+        },
+        "maxRequestsPerMinute": 20,
+        "timeoutMs": 10000,
+        "retryCount": 1
+      },
+      "scrapeStrategy": {
+        "plp": {
+          "mode": "api",
+          "notes": "Category page HTML has SSR category metadata, but product cards are fetched through the product-categories API.",
+          "endpointTemplate": "https://api.kurly.com/collection/v2/home/sites/market/product-categories/{categoryNo}/products?sort_type={sortType}&page={page}&per_page={perPage}&filters={filters}"
+        },
+        "pdp": {
+          "mode": "html",
+          "notes": "Product detail data is currently embedded in the page __NEXT_DATA__; direct product API path was not confirmed.",
+          "endpointTemplate": "https://www.kurly.com/goods/{productNo}"
+        }
+      },
+      "enabled": true,
+      "notes": "Verified against /categories/918 on 2026-05-09 KST. PLP per_page 96 and 100 worked; 200 returned validation error.",
+      "createdAt": "2026-05-09T00:00:00.000+09:00",
+      "updatedAt": "2026-05-09T00:00:00.000+09:00"
+    }
+  ]
+}

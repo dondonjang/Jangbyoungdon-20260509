@@ -1,0 +1,566 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ScrapePageKind {
+  PLP
+  PDP
+  UNKNOWN
+}
+
+enum ScrapeSource {
+  HTML
+  MARKET_API
+  NEXT_DATA
+  BROWSER
+}
+
+enum ScrapeStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum ScrapeTargetStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ProductScrapeStatus {
+  PENDING
+  SCRAPED
+  PARSED
+  FAILED
+}
+
+enum ProductInputStatus {
+  PENDING
+  SCRAPING
+  SCRAPED
+  ANALYZED
+  FAILED
+}
+
+enum ProductAttributeKind {
+  ATTRIBUTE
+  BENEFIT
+}
+
+enum ProductRelationKind {
+  SAME_PRODUCT
+  RECOMMENDED_PRODUCT
+}
+
+enum UserProductStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductInputKind {
+  NAME
+  URL
+}
+
+/// 수집 대상 마켓 설정
+model Market {
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  companyName              String
+  displayName              String
+  baseUrl                  String
+  apiBaseUrl               String?
+  renderingMode            String
+  botDetectionLevel        String
+  botDetectionLogic        Json
+  recommendedProxyStrategy String
+  recommendedProxy         Json
+  requestPolicy            Json
+  scrapeStrategy           Json
+  enabled                  Boolean  @default(true)
+  notes                    String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  scrapeTargets  ScrapeTarget[]
+  scrapeRuns     ScrapeRun[]
+  scrapedPages   ScrapedPage[]
+  products       Product[]
+  outboundClicks OutboundClick[]
+
+  @@map("markets")
+}
+
+/// 서비스 사용자
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products       UserProduct[]
+  outboundClicks OutboundClick[]
+
+  @@map("users")
+}
+
+/// 수집 대상 URL 통합 관리
+model ScrapeTarget {
+  /// 내부 ID
+  id            String             @id @default(cuid())
+  /// 마켓 ID
+  marketId      String?
+  /// 사람이 보는 이름
+  label         String?
+  /// 원본 URL
+  url           String
+  /// URL 중복 체크용 정규화 키
+  urlKey        String
+  /// 예상 페이지 종류
+  pageKind      ScrapePageKind     @default(UNKNOWN)
+  /// 수집 상태
+  status        ScrapeTargetStatus @default(ACTIVE)
+  /// 반복 수집 여부
+  isRecurring   Boolean            @default(false)
+  /// 태그 목록
+  tags          Json               @default("[]")
+  /// 마지막 수집 시각
+  lastScrapedAt DateTime?
+  /// 다음 수집 예정 시각
+  nextScrapeAt  DateTime?
+  /// 메모
+  notes         String?
+  /// 생성 시각
+  createdAt     DateTime           @default(now())
+  /// 수정 시각
+  updatedAt     DateTime           @updatedAt
+
+  market     Market?     @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  scrapeRuns ScrapeRun[]
+
+  @@unique([urlKey])
+  @@index([marketId, pageKind, status])
+  @@index([status, nextScrapeAt])
+  @@map("scrape_targets")
+}
+
+/// URL/API 호출 단위 수집 실행 로그
+model ScrapeRun {
+  id             String         @id @default(cuid())
+  scrapeTargetId String?
+  marketId       String?
+  inputUrl       String
+  normalizedUrl  String
+  pageKind       ScrapePageKind @default(UNKNOWN)
+  source         ScrapeSource
+  status         ScrapeStatus   @default(PENDING)
+  request        Json?
+  responseMeta   Json?
+  errorMessage   String?
+  startedAt      DateTime       @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  scrapeTarget ScrapeTarget? @relation(fields: [scrapeTargetId], references: [id], onDelete: SetNull)
+  market       Market?       @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  scrapedPage  ScrapedPage?
+
+  @@index([scrapeTargetId, status])
+  @@index([marketId, pageKind, status])
+  @@index([normalizedUrl])
+  @@map("scrape_runs")
+}
+
+/// 수집한 원본 페이지 또는 API 응답
+model ScrapedPage {
+  id            String         @id @default(cuid())
+  scrapeRunId   String         @unique
+  marketId      String?
+  url           String
+  finalUrl      String
+  canonicalUrl  String?
+  pageKind      ScrapePageKind @default(UNKNOWN)
+  source        ScrapeSource
+  statusCode    Int
+  contentType   String?
+  html          String?
+  rawJson       Json?
+  title         String?
+  description   String?
+  imageUrl      String?
+  parserVersion String
+  parsedAt      DateTime?
+  fetchedAt     DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  scrapeRun ScrapeRun @relation(fields: [scrapeRunId], references: [id], onDelete: Cascade)
+  market    Market?   @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  products  Product[]
+
+  @@index([marketId, pageKind, fetchedAt])
+  @@index([canonicalUrl])
+  @@map("scraped_pages")
+}
+
+/// 사용자 입력 상품의 분석/비교 기준이 되는 마스터 상품
+model ProductMaster {
+  /// 내부 ID
+  id              String   @id @default(cuid())
+  /// 정규화 상품명
+  normalizedName  String
+  /// 화면 노출 상품명
+  displayName     String
+  /// OpenAI가 정제한 상품명
+  refinedName     String?
+  /// 브랜드
+  brand           String?
+  /// 대표 카테고리
+  category        String?
+  /// 상품 요약
+  summary         String?
+  /// 동일 상품 매칭용 키
+  matchKey        String?
+  /// 분석 상태
+  analysisStatus  String   @default("pending")
+  /// 동일 상품 검색 키워드 목록
+  sameKeywords    Json     @default("[]")
+  /// 연관 상품 검색 키워드 목록
+  relatedKeywords Json     @default("[]")
+  /// 원본/보조 데이터
+  raw             Json?
+  /// 생성 시각
+  createdAt       DateTime @default(now())
+  /// 수정 시각
+  updatedAt       DateTime @updatedAt
+
+  inputLinks       ProductInputLink[]
+  products         Product[]
+  analyses         ProductAnalysis[]
+  userProducts     UserProduct[]
+  productRelations ProductRelation[]
+  outboundClicks   OutboundClick[]
+
+  @@unique([matchKey])
+  @@index([normalizedName])
+  @@index([brand])
+  @@map("product_masters")
+}
+
+/// 사용자가 최초 입력한 상품 링크
+model ProductInputLink {
+  /// 내부 ID
+  id           String             @id @default(cuid())
+  /// 연결된 마스터 상품 ID
+  masterId     String
+  /// 최초 수집된 실제 상품 ID
+  productId    String?
+  /// 사용자가 입력한 원본 URL
+  inputUrl     String
+  /// 입력 URL 중복 체크용 정규화 키
+  inputUrlKey  String
+  /// 입력 링크 처리 상태
+  status       ProductInputStatus @default(PENDING)
+  /// 처리 실패 사유
+  errorMessage String?
+  /// 원본/보조 데이터
+  raw          Json?
+  /// 생성 시각
+  createdAt    DateTime           @default(now())
+  /// 수정 시각
+  updatedAt    DateTime           @updatedAt
+
+  master  ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  product Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([inputUrlKey])
+  @@index([masterId, status])
+  @@map("product_input_links")
+}
+
+/// 마켓별 실제 상품/카탈로그 링크
+model Product {
+  /// 내부 ID
+  id                String              @id @default(cuid())
+  /// 연결된 마스터 상품 ID
+  masterId          String
+  /// 마켓 ID
+  marketId          String
+  /// 수집 원본 페이지 ID
+  scrapedPageId     String?
+  /// 상품 URL
+  url               String
+  /// URL 중복 체크용 정규화 키
+  urlKey            String
+  /// canonical URL
+  canonicalUrl      String?
+  /// 마켓 상품 번호
+  externalProductNo String?
+  /// 마켓 아이템/옵션 번호
+  externalItemNo    String?
+  /// 원본 상품명
+  title             String?
+  /// 정규화 상품명
+  normalizedTitle   String?
+  /// 화면 노출 상품명
+  displayName       String?
+  /// 브랜드
+  brand             String?
+  /// 카테고리
+  category          String?
+  /// 대표 이미지 URL
+  imageUrl          String?
+  /// 판매가
+  price             Int?
+  /// 정가
+  retailPrice       Int?
+  /// 통화
+  currency          String              @default("KRW")
+  /// 재고/판매 상태
+  availability      String?
+  /// 판매자명
+  sellerName        String?
+  /// 수집 상태
+  scrapeStatus      ProductScrapeStatus @default(PENDING)
+  /// 수집 시각
+  scrapedAt         DateTime?
+  /// 파싱 시각
+  parsedAt          DateTime?
+  /// 수집/파싱 에러
+  scrapeError       String?
+  /// 원본/보조 데이터
+  raw               Json?
+  /// 최초 발견 시각
+  firstSeenAt       DateTime            @default(now())
+  /// 마지막 발견 시각
+  lastSeenAt        DateTime            @default(now())
+  /// 생성 시각
+  createdAt         DateTime            @default(now())
+  /// 수정 시각
+  updatedAt         DateTime            @updatedAt
+
+  master         ProductMaster      @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  market         Market             @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  scrapedPage    ScrapedPage?       @relation(fields: [scrapedPageId], references: [id], onDelete: SetNull)
+  inputLinks     ProductInputLink[]
+  attributes     ProductAttribute[]
+  relationsFrom  ProductRelation[]  @relation("ProductRelationSource")
+  relationsTo    ProductRelation[]  @relation("ProductRelationTarget")
+  outboundClicks OutboundClick[]
+
+  @@unique([marketId, urlKey])
+  @@unique([marketId, externalProductNo])
+  @@unique([marketId, externalItemNo])
+  @@index([masterId])
+  @@index([marketId, scrapeStatus])
+  @@index([normalizedTitle])
+  @@index([brand])
+  @@map("products")
+}
+
+/// 외부 상품 링크 클릭 로그
+model OutboundClick {
+  /// 내부 ID
+  id                String   @id @default(cuid())
+  /// 클릭한 사용자 ID
+  userId            String?
+  /// 클릭이 발생한 마스터 상품 ID
+  masterId          String?
+  /// 클릭한 실제 상품 ID
+  productId         String?
+  /// 클릭한 상품의 마켓 ID
+  marketId          String?
+  /// 외부 이동 URL
+  url               String
+  /// URL 집계용 정규화 키
+  urlKey            String
+  /// 클릭 출처 UI 영역
+  source            String?
+  /// 클릭 위치
+  position          String?
+  /// 클릭 당시 상품명
+  productTitle      String?
+  /// 클릭 당시 마켓명
+  marketDisplayName String?
+  /// 클릭 당시 판매가
+  price             Int?
+  /// 클릭 당시 정가
+  retailPrice       Int?
+  /// 클릭 당시 배송비
+  shippingFee       Int?
+  /// 클릭 당시 최종가
+  finalPrice        Int?
+  /// 통화
+  currency          String   @default("KRW")
+  /// 클릭 당시 판매/재고 상태
+  availability      String?
+  /// 클릭 당시 판매자명
+  sellerName        String?
+  /// 클릭 직전 화면
+  referrer          String?
+  /// 브라우저 user-agent
+  userAgent         String?
+  /// 추가 컨텍스트
+  metadata          Json?
+  /// 생성 시각
+  createdAt         DateTime @default(now())
+  /// 수정 시각
+  updatedAt         DateTime @updatedAt
+
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  master  ProductMaster? @relation(fields: [masterId], references: [id], onDelete: SetNull)
+  market  Market?        @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  product Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([masterId, createdAt])
+  @@index([marketId, createdAt])
+  @@index([productId, createdAt])
+  @@index([urlKey])
+  @@map("outbound_clicks")
+}
+
+/// 상품 속성/베네핏 key-value 데이터
+model ProductAttribute {
+  /// 내부 ID
+  id          String               @id @default(cuid())
+  /// 상품 ID
+  productId   String
+  /// 속성/베네핏 구분
+  kind        ProductAttributeKind @default(ATTRIBUTE)
+  /// 속성 그룹
+  group       String               @default("default")
+  /// 원본 속성명
+  rawKey      String?
+  /// 정규화 키
+  key         String
+  /// 화면 노출 라벨
+  label       String?
+  /// 원본 값
+  value       String
+  /// 숫자형 값
+  valueNumber Float?
+  /// 단위
+  unit        String?
+  /// 원본/보조 데이터
+  raw         Json?
+  /// 생성 시각
+  createdAt   DateTime             @default(now())
+  /// 수정 시각
+  updatedAt   DateTime             @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, kind, group, key])
+  @@index([key])
+  @@map("product_attributes")
+}
+
+/// 동일 상품 또는 추천 상품 연결 관계
+model ProductRelation {
+  /// 내부 ID
+  id              String              @id @default(cuid())
+  /// 기준 마스터 상품 ID
+  masterId        String
+  /// 기준 상품 ID
+  sourceProductId String?
+  /// 연결 대상 상품 ID
+  targetProductId String
+  /// 동일 상품/추천 상품 구분
+  kind            ProductRelationKind
+  /// 유사도 점수
+  similarityScore Float?
+  /// 연결 이유
+  reason          String?
+  /// 원본/보조 데이터
+  raw             Json?
+  /// 생성 시각
+  createdAt       DateTime            @default(now())
+  /// 수정 시각
+  updatedAt       DateTime            @updatedAt
+
+  master        ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  sourceProduct Product?      @relation("ProductRelationSource", fields: [sourceProductId], references: [id], onDelete: SetNull)
+  targetProduct Product       @relation("ProductRelationTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+
+  @@unique([masterId, targetProductId, kind])
+  @@index([masterId, kind])
+  @@map("product_relations")
+}
+
+/// 사용자가 저장한 상품 목록
+model UserProduct {
+  /// 내부 ID
+  id          String            @id @default(cuid())
+  /// 사용자 ID
+  userId      String
+  /// 저장한 마스터 상품 ID
+  masterId    String
+  /// 최초 입력 종류
+  inputKind   ProductInputKind
+  /// 최초 입력값
+  sourceValue String
+  /// 사용자 화면 노출명
+  displayName String
+  /// 저장 상태
+  status      UserProductStatus @default(ACTIVE)
+  /// 사용자 태그
+  tags        Json              @default("[]")
+  /// 사용자 메모
+  memo        String?
+  /// 생성 시각
+  createdAt   DateTime          @default(now())
+  /// 수정 시각
+  updatedAt   DateTime          @updatedAt
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  master ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, masterId])
+  @@index([userId, status, updatedAt])
+  @@map("user_products")
+}
+
+/// OpenAI 등 분석 실행 결과
+model ProductAnalysis {
+  /// 내부 ID
+  id          String           @id @default(cuid())
+  /// 분석 대상 마스터 상품 ID
+  masterId    String
+  /// 분석 입력값
+  sourceValue String
+  /// 입력 종류
+  inputKind   ProductInputKind
+  /// 분석 요약
+  summary     String
+  /// 사용 모델명
+  model       String?
+  /// 프롬프트 해시
+  promptHash  String?
+  /// 분석 입력 원본
+  rawInput    Json?
+  /// 분석 출력 원본
+  rawOutput   Json?
+  /// 생성 시각
+  createdAt   DateTime         @default(now())
+  /// 수정 시각
+  updatedAt   DateTime         @updatedAt
+
+  master ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+
+  @@index([masterId, createdAt])
+  @@map("product_analyses")
+}
