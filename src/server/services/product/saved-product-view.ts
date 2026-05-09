@@ -81,22 +81,6 @@ type ProductLinkOfferRow = {
   isAd: boolean;
 };
 
-type OtherUserInterestProductRow = {
-  id: number;
-  displayName: string;
-  brand: string | null;
-  summary: string | null;
-  interestCount: number | bigint;
-  lastInterestedAt: Date | string;
-  sourceProductId: number | null;
-  sourceMarketName: string | null;
-  sourceMarketProductNo: string | null;
-  sourceUrl: string | null;
-  sourceName: string | null;
-  sourceImageUrl: string | null;
-  sourcePrice: number | null;
-};
-
 type SavedProductListOptions = {
   page?: number;
   pageSize?: number;
@@ -219,7 +203,7 @@ export async function getSavedProductView(masterId: number): Promise<SavedProduc
   return products[0] || null;
 }
 
-// 마스터 목록에 가격비교 링크, 판매처 offer, 다른 사용자 관심 상품을 붙여 화면 모델로 만든다.
+// 마스터 목록에 가격비교 링크, 판매처 offer, 상품별 유사 추천 후보를 붙여 화면 모델로 만든다.
 async function hydrateSavedProductViews(masters: MasterRow[]) {
   const masterIds = masters.map((master) => master.id);
   const links = await prisma.$queryRaw<ProductLinkRow[]>`
@@ -291,11 +275,7 @@ async function hydrateSavedProductViews(masters: MasterRow[]) {
           `
       : [];
 
-  const otherUserInterestProducts = await listOtherUserInterestProducts();
-
-  return masters.map((master) =>
-    toSavedProductView(master, links, offers, otherUserInterestProducts),
-  );
+  return masters.map((master) => toSavedProductView(master, links, offers));
 }
 
 // DB row와 하위 링크 데이터를 프론트에서 바로 렌더링 가능한 SavedProductView로 변환한다.
@@ -303,7 +283,6 @@ function toSavedProductView(
   master: MasterRow,
   links: ProductLinkRow[],
   offers: ProductLinkOfferRow[],
-  otherUserInterestProducts: OtherUserInterestProductView[],
 ): SavedProductView {
   const masterLinks = links
     .filter((link) => link.masterId === master.id)
@@ -335,83 +314,36 @@ function toSavedProductView(
     recommendedProductLinks: masterLinks.filter(
       (link) => link.relationKind === "RECOMMENDED_PRODUCT" && isVisibleRecommendedLink(link),
     ),
-    otherUserInterestProducts: otherUserInterestProducts
-      .filter((product) => product.id !== master.id)
+    otherUserInterestProducts: masterLinks
+      .filter(
+        (link) => link.relationKind === "RECOMMENDED_PRODUCT" && isVisibleRecommendedLink(link),
+      )
+      .map(toSimilarProductView)
       .slice(0, 3),
     createdAt: toIsoString(master.createdAt),
     updatedAt: toIsoString(master.updatedAt),
   };
 }
 
-// 현재 기본 사용자를 제외하고 다른 사용자들이 많이 저장한 상품을 인기 후보로 가져온다.
-async function listOtherUserInterestProducts(): Promise<OtherUserInterestProductView[]> {
-  const rows = await prisma.$queryRaw<OtherUserInterestProductRow[]>`
-      select
-        m.id,
-        m."displayName",
-        m.brand,
-        m.summary,
-        count(up.id) as "interestCount",
-        max(up."updatedAt") as "lastInterestedAt",
-        p.id as "sourceProductId",
-        p."marketName" as "sourceMarketName",
-        p."marketProductNo" as "sourceMarketProductNo",
-        p."sourceUrl",
-        p.name as "sourceName",
-        p."imageUrl" as "sourceImageUrl",
-        p.price as "sourcePrice"
-      from user_products up
-      inner join product_masters m on m.id = up."masterId"
-      left join lateral (
-        select *
-        from products
-        where "masterId" = m.id
-        order by id asc
-        limit 1
-      ) p on true
-      where up."userId" <> ${DEFAULT_USER_ID}
-        and up.status = 'ACTIVE'
-      group by
-        m.id,
-        m."displayName",
-        m.brand,
-        m.summary,
-        p.id,
-        p."marketName",
-        p."marketProductNo",
-        p."sourceUrl",
-        p.name,
-        p."imageUrl",
-        p.price
-      order by "interestCount" desc, "lastInterestedAt" desc
-      limit 30
-    `;
-
-  return rows.map(toOtherUserInterestProductView);
-}
-
-// 다른 사용자 관심 상품 row를 카드 렌더링에 필요한 최소 shape으로 변환한다.
-function toOtherUserInterestProductView(
-  row: OtherUserInterestProductRow,
-): OtherUserInterestProductView {
+// 프론트 호환을 위해 otherUserInterestProducts shape을 유지하되,
+// 실제 데이터는 상품별 RECOMMENDED_PRODUCT 링크에서 만든 유사 상품 추천 후보이다.
+function toSimilarProductView(link: ProductLinkView): OtherUserInterestProductView {
   return {
-    id: row.id,
-    displayName: row.displayName,
-    brand: row.brand,
-    summary: row.summary,
-    interestCount: Number(row.interestCount),
-    sourceProduct: row.sourceProductId
-      ? {
-          id: row.sourceProductId,
-          marketName: row.sourceMarketName || "",
-          marketProductNo: row.sourceMarketProductNo || "",
-          sourceUrl: row.sourceUrl || "",
-          name: row.sourceName || row.displayName,
-          imageUrl: row.sourceImageUrl || "",
-          price: row.sourcePrice || 0,
-        }
-      : null,
-    updatedAt: toIsoString(row.lastInterestedAt),
+    id: link.id,
+    displayName: link.name,
+    brand: null,
+    summary: link.summary || link.recommendationReasons.join(", ") || null,
+    interestCount: link.reviewCount || link.mallCount || link.recommendationScore || 1,
+    sourceProduct: {
+      id: link.id,
+      marketName: link.mallName || link.marketName,
+      marketProductNo: link.marketProductNo,
+      sourceUrl: link.sourceUrl,
+      name: link.name,
+      imageUrl: link.imageUrl || "",
+      price: link.price || 0,
+    },
+    updatedAt: new Date().toISOString(),
   };
 }
 

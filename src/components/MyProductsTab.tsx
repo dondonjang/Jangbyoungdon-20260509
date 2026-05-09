@@ -336,7 +336,7 @@ function ProductCard({
           className="w-full flex items-center justify-between px-5 py-3.5 text-left"
           aria-expanded={recOpen}
         >
-          <span className="font-semibold text-sm">다른 사용자들이 많이 찾는 인기 상품</span>
+          <span className="font-semibold text-sm">많이 찾는 유사 상품</span>
           {recOpen ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
@@ -354,12 +354,13 @@ function ProductCard({
 }
 
 function PopularProductGroup({ products }: { products: OtherUserInterestProductView[] }) {
+  // API 호환상 OtherUserInterestProductView 타입을 쓰지만, 현재 화면 의미는 상품별 유사 추천 후보이다.
   const visibleProducts = products.slice(0, POPULAR_PRODUCT_PREVIEW_COUNT);
 
   if (visibleProducts.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-sm text-muted-foreground">
-        다른 사용자 관심 상품을 분석 중입니다.
+        유사 상품을 분석 중입니다.
       </div>
     );
   }
@@ -406,7 +407,7 @@ function PopularProductCard({ product }: { product: OtherUserInterestProductView
         </div>
       </div>
       <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-        {product.summary || product.brand || "다른 사용자들이 저장한 관심 상품"}
+        {product.summary || product.brand || "비슷한 조건으로 많이 찾는 상품"}
       </p>
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-[11px] text-muted-foreground">
