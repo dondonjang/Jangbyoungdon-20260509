@@ -1,35 +1,3 @@
-export type ProductInputKind = "name" | "url";
-
-export type ProductListing = {
-  shop: string;
-  title: string;
-  price: number;
-  shipping: number;
-  url: string;
-};
-
-export type ProductRecommendation = {
-  name: string;
-  price: number;
-  rating: number;
-  review: string;
-  reason: string;
-};
-
-export type FrequentProduct = {
-  id: string;
-  inputKind: ProductInputKind;
-  sourceValue: string;
-  name: string;
-  normalizedName: string;
-  summary: string;
-  listings: ProductListing[];
-  sameProducts: ProductRecommendation[];
-  similarProducts: ProductRecommendation[];
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type ProductLinkOfferView = {
   id: number;
   marketName: string;
@@ -61,6 +29,12 @@ export type ProductLinkView = {
   name: string;
   imageUrl: string | null;
   price: number | null;
+  isCatalog: boolean;
+  categoryName: string | null;
+  mallCount: number | null;
+  reviewCount: number | null;
+  rating: number | null;
+  summary: string | null;
   listingOrder: number | null;
   isAd: boolean;
   offers: ProductLinkOfferView[];
@@ -91,18 +65,24 @@ export type SavedProductView = {
   updatedAt: string;
 };
 
+export type SavedProductListPage = {
+  products: SavedProductView[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+export type ChatProductAnalyzeResult = {
+  product: SavedProductView;
+  message: string;
+};
+
 export type AnalyzeProductInput = {
   value: string;
 };
-
-export function detectProductInputKind(value: string): ProductInputKind {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? "url" : "name";
-  } catch {
-    return "name";
-  }
-}
 
 export function isSupportedProductDetailUrl(value: string) {
   try {
@@ -114,6 +94,19 @@ export function isSupportedProductDetailUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+export function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function isSupportedProductInput(value: string) {
+  return isSupportedProductDetailUrl(value);
 }
 
 export function formatKRW(n: number) {

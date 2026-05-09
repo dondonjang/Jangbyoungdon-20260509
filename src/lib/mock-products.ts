@@ -1,71 +1,174 @@
-import type { FrequentProduct, ProductListing, ProductRecommendation } from "./product-types";
-import { nowIsoTimestamp } from "./common";
-import { detectProductInputKind, formatKRW } from "./product-types";
+import type { SavedProductListPage, SavedProductView } from "@/lib/product-types";
 
-const SHOPS = ["쿠팡", "네이버쇼핑", "11번가", "G마켓", "옥션"];
+const now = "2026-05-09T12:00:00.000Z";
 
-function rand(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+export const MOCK_SAVED_PRODUCT: SavedProductView = {
+  id: 1,
+  displayName: "프로쉬 식기세척기 주방세제 그린레몬 미니 50개입",
+  refinedName: "프로쉬 식기세척기 주방세제 그린레몬 미니 50개입",
+  brand: "프로쉬",
+  summary: "식기세척기 전용 미니 캡슐형 세제로, 그린레몬 향과 50개입 구성이 핵심입니다.",
+  analysisStatus: "MOCK_READY",
+  sameKeywords: [
+    "프로쉬 식기세척기 주방세제 그린레몬 미니 50개입",
+    "프로쉬 식기세척기 세제 그린레몬 미니 캡슐 50개입",
+  ],
+  relatedKeywords: ["식기세척기 주방세제 미니 캡슐 50개입", "식기세척기 세제 미니 캡슐 50개입"],
+  relatedCoreAttributes: ["식기세척기 주방세제", "미니 캡슐", "50개입", "그린레몬 향"],
+  sourceProduct: {
+    id: 97,
+    marketName: "kurly",
+    marketProductNo: "1000861713",
+    sourceUrl: "https://www.kurly.com/goods/1000861713",
+    name: "[프로쉬] 식기세척기 주방세제 그린레몬 미니 50개입",
+    imageUrl:
+      "https://3p-image.kurly.com/files/abd16f31-25d6-49f5-9ecf-5682e8defc2b/10f8e5f9-cd51-468b-a65c-10bb375e177b.jpg",
+    price: 16900,
+  },
+  sameProductLinks: [
+    {
+      id: 1001,
+      marketName: "danawa",
+      marketProductNo: "mock-catalog-1000861713",
+      marketItemNo: null,
+      linkType: "DANAWA_CATALOG",
+      relationKind: "SAME_PRODUCT",
+      searchKeyword: "프로쉬 식기세척기 주방세제 그린레몬 미니 50개입",
+      sourceUrl: "https://search.danawa.com/dsearch.php?query=프로쉬 식기세척기 주방세제",
+      name: "프로쉬 식기세척기 주방세제 그린레몬 미니 50개입",
+      imageUrl:
+        "https://3p-image.kurly.com/files/abd16f31-25d6-49f5-9ecf-5682e8defc2b/10f8e5f9-cd51-468b-a65c-10bb375e177b.jpg",
+      price: 15900,
+      isCatalog: true,
+      categoryName: "주방세제/세정제",
+      mallCount: 12,
+      reviewCount: 128,
+      rating: 4.7,
+      summary: "그린레몬향, 미니 캡슐형, 식기세척기 전용",
+      listingOrder: 1,
+      isAd: false,
+      offers: [
+        {
+          id: 2001,
+          marketName: "coupang",
+          marketProductNo: "mock-coupang-1000861713",
+          marketItemNo: null,
+          mallName: "쿠팡",
+          sellerName: "로켓배송",
+          sourceUrl: "https://www.coupang.com/",
+          name: "프로쉬 식기세척기 세제 그린레몬 미니 50개입",
+          imageUrl: null,
+          price: 15900,
+          shippingFee: 0,
+          finalPrice: 15900,
+          deliveryText: "무료배송",
+          availability: "판매중",
+          listingOrder: 1,
+          isAd: false,
+        },
+        {
+          id: 2002,
+          marketName: "gmarket",
+          marketProductNo: "mock-gmarket-1000861713",
+          marketItemNo: null,
+          mallName: "G마켓",
+          sellerName: "공식 판매처",
+          sourceUrl: "https://www.gmarket.co.kr/",
+          name: "프로쉬 그린레몬 미니 식기세척기 세제 50개입",
+          imageUrl: null,
+          price: 14900,
+          shippingFee: 3000,
+          finalPrice: 17900,
+          deliveryText: "배송비 3,000원",
+          availability: "판매중",
+          listingOrder: 2,
+          isAd: false,
+        },
+      ],
+    },
+    {
+      id: 1002,
+      marketName: "danawa",
+      marketProductNo: "mock-ad-1000861713",
+      marketItemNo: null,
+      linkType: "DANAWA_AD_CATALOG",
+      relationKind: "SAME_PRODUCT",
+      searchKeyword: "프로쉬 식기세척기 세제 미니 50개입",
+      sourceUrl: "https://search.danawa.com/dsearch.php?query=프로쉬 식기세척기 세제 미니",
+      name: "프로쉬 식기세척기 세제 미니 50개입 광고 후보",
+      imageUrl: null,
+      price: 16800,
+      isCatalog: true,
+      categoryName: "식기세척기 세제",
+      mallCount: 8,
+      reviewCount: 42,
+      rating: 4.5,
+      summary: "미니 태블릿형 식기세척기 세제",
+      listingOrder: 2,
+      isAd: true,
+      offers: [],
+    },
+  ],
+  recommendedProductLinks: [
+    {
+      id: 3001,
+      marketName: "danawa",
+      marketProductNo: "mock-related-1",
+      marketItemNo: null,
+      linkType: "DANAWA_CATALOG",
+      relationKind: "RECOMMENDED_PRODUCT",
+      searchKeyword: "식기세척기 주방세제 미니 캡슐 50개입",
+      sourceUrl: "https://search.danawa.com/dsearch.php?query=식기세척기 주방세제 미니 캡슐 50개입",
+      name: "식기세척기 주방세제 미니 캡슐형 50개입",
+      imageUrl: null,
+      price: 13900,
+      isCatalog: true,
+      categoryName: "식기세척기 세제",
+      mallCount: 9,
+      reviewCount: 87,
+      rating: 4.6,
+      summary: "미니 캡슐형, 50개입, 식기세척기 전용",
+      listingOrder: 1,
+      isAd: false,
+      offers: [],
+    },
+    {
+      id: 3002,
+      marketName: "danawa",
+      marketProductNo: "mock-related-2",
+      marketItemNo: null,
+      linkType: "DANAWA_CATALOG",
+      relationKind: "RECOMMENDED_PRODUCT",
+      searchKeyword: "식기세척기 세제 캡슐 레몬향 50개입",
+      sourceUrl: "https://search.danawa.com/dsearch.php?query=식기세척기 세제 캡슐 레몬향 50개입",
+      name: "레몬향 식기세척기 세제 캡슐 50개입",
+      imageUrl: null,
+      price: 12900,
+      isCatalog: true,
+      categoryName: "식기세척기 세제",
+      mallCount: 7,
+      reviewCount: 63,
+      rating: 4.4,
+      summary: "레몬향 캡슐형 식기세척기 세제",
+      listingOrder: 2,
+      isAd: false,
+      offers: [],
+    },
+  ],
+  createdAt: now,
+  updatedAt: now,
+};
+
+export const MOCK_SAVED_PRODUCT_PAGE: SavedProductListPage = {
+  products: [MOCK_SAVED_PRODUCT],
+  page: 1,
+  pageSize: 10,
+  totalCount: 1,
+  totalPages: 1,
+  hasNextPage: false,
+  hasPreviousPage: false,
+};
+
+export function withMockSavedProductFallback(page: SavedProductListPage) {
+  return page.products.length > 0 ? page : MOCK_SAVED_PRODUCT_PAGE;
 }
-
-function hashStr(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-export function generateMockProduct(value: string): FrequentProduct {
-  const inputKind = detectProductInputKind(value);
-  const displayName = inputKind === "url" ? "링크로 추가한 상품" : value;
-  const seed = hashStr(value);
-  const base = 8000 + Math.floor(rand(seed) * 30000);
-  const listings: ProductListing[] = SHOPS.map((shop, i) => {
-    const variance = Math.floor((rand(seed + i + 1) - 0.5) * 6000);
-    const price = Math.max(3000, base + variance);
-    const shipping = rand(seed + i + 100) > 0.5 ? 0 : 2500 + Math.floor(rand(seed + i) * 1000);
-    return { shop, title: displayName, price, shipping, url: inputKind === "url" ? value : "#" };
-  });
-
-  const sameNames = [`${displayName} 동일 구성`, `${displayName} 정품`, `${displayName} 리필/번들`];
-  const similarNames = [
-    `${displayName} 프리미엄`,
-    `${displayName} 오리지널`,
-    `${displayName} 라이트`,
-  ];
-  const reviews = [
-    "구매자들이 가성비가 정말 좋다고 입을 모아요. 재구매 의사가 높은 인기 상품이에요.",
-    "품질이 우수하고 포장도 깔끔하다는 후기가 많아요. 선물용으로도 추천돼요.",
-    "배송이 빠르고 사용감이 부드럽다는 평이 많아요. 처음 사용하는 분께 추천해요.",
-  ];
-  const makeRecommendation = (n: string, i: number, reason: string): ProductRecommendation => ({
-    name: n,
-    price: Math.max(3000, base + Math.floor((rand(seed + i + 50) - 0.3) * 8000)),
-    rating: Math.round((4.2 + rand(seed + i + 77) * 0.7) * 10) / 10,
-    review: reviews[i % reviews.length],
-    reason,
-  });
-  const sameProducts = sameNames.map((n, i) =>
-    makeRecommendation(n, i, "상품명과 구성 키워드가 가장 가까운 동일 상품 후보예요."),
-  );
-  const similarProducts = similarNames.map((n, i) =>
-    makeRecommendation(n, i + 10, "가격대와 사용 목적이 비슷한 대체 상품이에요."),
-  );
-  const now = nowIsoTimestamp();
-
-  return {
-    id: `${seed}-${Date.now()}`,
-    inputKind,
-    sourceValue: value,
-    name: displayName,
-    normalizedName: displayName.trim().toLowerCase(),
-    summary: "현재는 백엔드 파이프라인 뼈대에서 생성한 임시 분석 결과입니다.",
-    listings,
-    sameProducts,
-    similarProducts,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-export { formatKRW };

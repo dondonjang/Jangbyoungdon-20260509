@@ -1,15 +1,15 @@
 export const CHAT_COPY = {
-  analysisTitle: "장바구니 비서 분석중입니다",
+  analysisTitle: "생필품 장바구니 비서 분석중입니다",
   unsupportedProductUrl: "상품 상세 페이지 링크를 넣어주세요.",
   retryRequested:
     "개발 친구한테 재시도 요청을 했어요.\n완료 되면 다시 알려드릴게요.\n죄송 하지만 조금만 기다려 주세요.",
   welcome: {
     intro: "안녕하세요! 저는",
-    assistantName: "장바구니 비서",
+    assistantName: "생필품 장바구니 비서",
     suffix: "예요.",
     instruction: "상품 상세 페이지 링크를 보내주시면 분석해서 자주 사는 상품에 저장해둘게요.",
-    promise: "항상 더 잘 살수 있도록 도와드립니다.",
-    supportedMarket: "(현재는 마켓컬리만 지원을 하고 있어요)",
+    promise: "반복 구매 스트레스를 줄여드립니다. 더 이상 시간 낭비하지마세요.",
+    supportedMarket: "(현재는 마켓컬리 생필품만 지원을 하고 있어요)",
   },
   completion: {
     registeredSuffix: "상품이 등록 되었습니다.",

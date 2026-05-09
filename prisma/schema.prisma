@@ -53,6 +53,7 @@ enum ProductRelationKind {
 enum UserProductStatus {
   ACTIVE
   ARCHIVED
+  DELETED
 }
 
 enum ProductInputKind {
@@ -293,6 +294,18 @@ model ProductLink {
   imageUrl        String?
   /// 수집 시점 가격
   price           Int?
+  /// 카탈로그/카테고리 후보 여부
+  isCatalog       Boolean  @default(false)
+  /// 다나와 등 검색 결과의 카테고리명
+  categoryName    String?
+  /// 카탈로그/검색 결과 기준 판매처 수
+  mallCount       Int?
+  /// 검색 결과 기준 리뷰 수
+  reviewCount     Int?
+  /// 검색 결과 기준 평점
+  rating          Float?
+  /// 검색 결과 기준 스펙/요약
+  summary         String?
   /// 검색 결과 노출 순서
   listingOrder    Int?
   /// 광고/스폰서 노출 여부
@@ -676,8 +689,8 @@ model UserProduct {
   user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   master ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, masterId])
   @@index([userId, status, updatedAt])
+  @@index([userId, masterId, status])
   @@map("user_products")
 }
 

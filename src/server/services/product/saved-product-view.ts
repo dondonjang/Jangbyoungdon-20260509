@@ -1,6 +1,16 @@
-import type { ProductLinkOfferView, ProductLinkView, SavedProductView } from "@/lib/product-types";
+import type {
+  ProductLinkOfferView,
+  ProductLinkView,
+  SavedProductListPage,
+  SavedProductView,
+} from "@/lib/product-types";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/prisma";
+import { DEFAULT_USER_ID } from "@/server/services/product/product-user";
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
 
 type MasterRow = {
   id: number;
@@ -36,6 +46,12 @@ type ProductLinkRow = {
   name: string;
   imageUrl: string | null;
   price: number | null;
+  isCatalog: boolean;
+  categoryName: string | null;
+  mallCount: number | null;
+  reviewCount: number | null;
+  rating: number | null;
+  summary: string | null;
   listingOrder: number | null;
   isAd: boolean;
 };
@@ -60,7 +76,89 @@ type ProductLinkOfferRow = {
   isAd: boolean;
 };
 
-export async function listSavedProductViews(): Promise<SavedProductView[]> {
+type SavedProductListOptions = {
+  page?: number;
+  pageSize?: number;
+};
+
+export async function listSavedProductViews(
+  options: SavedProductListOptions = {},
+): Promise<SavedProductView[]> {
+  const page = normalizePositiveInteger(options.page, DEFAULT_PAGE);
+  const pageSize = normalizePageSize(options.pageSize);
+  const offset = (page - 1) * pageSize;
+  const masters = await prisma.$queryRaw<MasterRow[]>`
+      select
+        m.id,
+        m."displayName",
+        m."refinedName",
+        m.brand,
+        m.summary,
+        m."analysisStatus",
+        m."sameKeywords",
+        m."relatedKeywords",
+        m.raw,
+        m."createdAt",
+        m."updatedAt",
+        p.id as "sourceProductId",
+        p."marketName" as "sourceMarketName",
+        p."marketProductNo" as "sourceMarketProductNo",
+        p."sourceUrl",
+        p.name as "sourceName",
+        p."imageUrl" as "sourceImageUrl",
+        p.price as "sourcePrice"
+      from product_masters m
+      inner join user_products up on up."masterId" = m.id
+      left join lateral (
+        select *
+        from products
+        where "masterId" = m.id
+        order by
+          case when "marketName" = 'kurly' then 0 else 1 end,
+          id asc
+        limit 1
+      ) p on true
+      where up."userId" = ${DEFAULT_USER_ID}
+        and up.status = 'ACTIVE'
+      order by up."updatedAt" desc, up.id desc
+      limit ${pageSize}
+      offset ${offset}
+    `;
+
+  if (masters.length === 0) {
+    return [];
+  }
+
+  return hydrateSavedProductViews(masters);
+}
+
+export async function listSavedProductViewPage(
+  options: SavedProductListOptions = {},
+): Promise<SavedProductListPage> {
+  const page = normalizePositiveInteger(options.page, DEFAULT_PAGE);
+  const pageSize = normalizePageSize(options.pageSize);
+  const countRows = await prisma.$queryRaw<Array<{ count: number | bigint }>>`
+      select count(*) as count
+      from user_products up
+      where up."userId" = ${DEFAULT_USER_ID}
+        and up.status = 'ACTIVE'
+    `;
+  const totalCount = Number(countRows[0]?.count || 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const products = await listSavedProductViews({ page, pageSize });
+
+  return {
+    products,
+    page,
+    pageSize,
+    totalCount,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
+  };
+}
+
+export async function getSavedProductView(masterId: number): Promise<SavedProductView | null> {
   const masters = await prisma.$queryRaw<MasterRow[]>`
       select
         m.id,
@@ -91,13 +189,14 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
           id asc
         limit 1
       ) p on true
-      order by m."updatedAt" desc
+      where m.id = ${masterId}
+      limit 1
     `;
+  const products = await hydrateSavedProductViews(masters);
+  return products[0] || null;
+}
 
-  if (masters.length === 0) {
-    return [];
-  }
-
+async function hydrateSavedProductViews(masters: MasterRow[]) {
   const masterIds = masters.map((master) => master.id);
   const links = await prisma.$queryRaw<ProductLinkRow[]>`
       select
@@ -113,6 +212,12 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
         name,
         "imageUrl",
         price,
+        "isCatalog",
+        "categoryName",
+        "mallCount",
+        "reviewCount",
+        rating,
+        summary,
         "listingOrder",
         "isAd"
       from product_links
@@ -155,11 +260,6 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
       : [];
 
   return masters.map((master) => toSavedProductView(master, links, offers));
-}
-
-export async function getSavedProductView(masterId: number): Promise<SavedProductView | null> {
-  const products = await listSavedProductViews();
-  return products.find((product) => product.id === masterId) || null;
 }
 
 function toSavedProductView(
@@ -215,6 +315,12 @@ function toProductLinkView(row: ProductLinkRow, offers: ProductLinkOfferRow[]): 
     name: row.name,
     imageUrl: row.imageUrl,
     price: row.price,
+    isCatalog: row.isCatalog,
+    categoryName: row.categoryName,
+    mallCount: row.mallCount,
+    reviewCount: row.reviewCount,
+    rating: row.rating,
+    summary: row.summary,
     listingOrder: row.listingOrder,
     isAd: row.isAd,
     offers: offers.filter((offer) => offer.parentLinkId === row.id).map(toProductLinkOfferView),
@@ -270,4 +376,14 @@ function parseJson(value: unknown) {
 
 function toIsoString(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number) {
+  if (!Number.isFinite(value) || !value) return fallback;
+  return Math.max(1, Math.floor(value));
+}
+
+function normalizePageSize(value: number | undefined) {
+  if (!Number.isFinite(value) || !value) return DEFAULT_PAGE_SIZE;
+  return Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(value)));
 }
