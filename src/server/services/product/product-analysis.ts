@@ -6,8 +6,8 @@ import {
 import { nowIsoTimestamp } from "@/lib/common";
 import { generateMockProduct } from "@/lib/mock-products";
 import { inMemoryFrequentProductsRepository } from "@/server/repositories/frequent-products-repository";
-import { buildProductIntel } from "@/server/services/external";
-import { scrapeProductPage } from "./scrape-page";
+import { buildProductIntel } from "@/server/services/ai/openai-client";
+import { scrapeProductPage } from "@/server/services/scrape/scrape-page";
 
 export async function listFrequentProducts() {
   return inMemoryFrequentProductsRepository.list();

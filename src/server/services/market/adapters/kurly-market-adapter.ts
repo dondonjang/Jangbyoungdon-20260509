@@ -3,7 +3,7 @@ import {
   KURLY_DEFAULT_PER_PAGE,
   KURLY_DEFAULT_SORT_TYPE,
 } from "@/server/services/scrape/kurly-collector";
-import type { MarketRequestResolver } from "@/server/services/market/types";
+import type { MarketRequestResolver } from "@/server/services/market/market-types";
 
 function getRequiredHeaders(market: MarketConfig) {
   return {

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiMarketsRouteImport } from './routes/api/markets'
 import { Route as ApiScrapeTargetsRouteImport } from './routes/api/scrape/targets'
 import { Route as ApiScrapeParseRouteImport } from './routes/api/scrape/parse'
+import { Route as ApiInternalProductsRouteImport } from './routes/api/internal/products'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,16 +35,23 @@ const ApiScrapeParseRoute = ApiScrapeParseRouteImport.update({
   path: '/api/scrape/parse',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalProductsRoute = ApiInternalProductsRouteImport.update({
+  id: '/api/internal/products',
+  path: '/api/internal/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
   '/api/scrape/targets': typeof ApiScrapeTargetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
   '/api/scrape/targets': typeof ApiScrapeTargetsRoute
 }
@@ -51,18 +59,30 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
   '/api/scrape/targets': typeof ApiScrapeTargetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/markets' | '/api/scrape/parse' | '/api/scrape/targets'
+  fullPaths:
+    | '/'
+    | '/api/markets'
+    | '/api/internal/products'
+    | '/api/scrape/parse'
+    | '/api/scrape/targets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/markets' | '/api/scrape/parse' | '/api/scrape/targets'
+  to:
+    | '/'
+    | '/api/markets'
+    | '/api/internal/products'
+    | '/api/scrape/parse'
+    | '/api/scrape/targets'
   id:
     | '__root__'
     | '/'
     | '/api/markets'
+    | '/api/internal/products'
     | '/api/scrape/parse'
     | '/api/scrape/targets'
   fileRoutesById: FileRoutesById
@@ -70,6 +90,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiMarketsRoute: typeof ApiMarketsRoute
+  ApiInternalProductsRoute: typeof ApiInternalProductsRoute
   ApiScrapeParseRoute: typeof ApiScrapeParseRoute
   ApiScrapeTargetsRoute: typeof ApiScrapeTargetsRoute
 }
@@ -104,12 +125,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiScrapeParseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/products': {
+      id: '/api/internal/products'
+      path: '/api/internal/products'
+      fullPath: '/api/internal/products'
+      preLoaderRoute: typeof ApiInternalProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiMarketsRoute: ApiMarketsRoute,
+  ApiInternalProductsRoute: ApiInternalProductsRoute,
   ApiScrapeParseRoute: ApiScrapeParseRoute,
   ApiScrapeTargetsRoute: ApiScrapeTargetsRoute,
 }

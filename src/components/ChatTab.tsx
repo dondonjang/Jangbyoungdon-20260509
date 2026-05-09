@@ -17,10 +17,10 @@ type Message =
 
 type Props = {
   onAddProduct: (name: string) => Promise<string>;
-  onGoToAnalysis: () => void;
+  onGoToMyProducts: () => void;
 };
 
-export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
+export function ChatTab({ onAddProduct, onGoToMyProducts }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -195,7 +195,7 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
                     {CHAT_COPY.completion.trackingPromise}
                   </span>
                 </p>
-                <Button size="sm" onClick={onGoToAnalysis} className="rounded-full text-xs h-8">
+                <Button size="sm" onClick={onGoToMyProducts} className="rounded-full text-xs h-8">
                   {CHAT_COPY.completion.action} <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </div>
