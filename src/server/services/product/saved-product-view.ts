@@ -1,5 +1,6 @@
 import type { ProductLinkOfferView, ProductLinkView, SavedProductView } from "@/lib/product-types";
-import { createSqlClient } from "@/server/db/sql";
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/server/db/prisma";
 
 type MasterRow = {
   id: number;
@@ -60,10 +61,7 @@ type ProductLinkOfferRow = {
 };
 
 export async function listSavedProductViews(): Promise<SavedProductView[]> {
-  const sql = createSqlClient();
-
-  try {
-    const masters = (await sql`
+  const masters = await prisma.$queryRaw<MasterRow[]>`
       select
         m.id,
         m."displayName",
@@ -94,14 +92,14 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
         limit 1
       ) p on true
       order by m."updatedAt" desc
-    `) as MasterRow[];
+    `;
 
-    if (masters.length === 0) {
-      return [];
-    }
+  if (masters.length === 0) {
+    return [];
+  }
 
-    const masterIds = masters.map((master) => master.id).join(",");
-    const links = (await sql`
+  const masterIds = masters.map((master) => master.id);
+  const links = await prisma.$queryRaw<ProductLinkRow[]>`
       select
         id,
         "masterId",
@@ -118,17 +116,17 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
         "listingOrder",
         "isAd"
       from product_links
-      where "masterId" = any(string_to_array(${masterIds}, ',')::int[])
+      where "masterId" in (${Prisma.join(masterIds)})
       order by
         "masterId" asc,
         case when "relationKind" = 'SAME_PRODUCT' then 0 else 1 end,
         "listingOrder" asc nulls last,
         id asc
-    `) as ProductLinkRow[];
-    const linkIds = links.map((link) => link.id).join(",");
-    const offers =
-      linkIds.length > 0
-        ? ((await sql`
+    `;
+  const linkIds = links.map((link) => link.id);
+  const offers =
+    linkIds.length > 0
+      ? await prisma.$queryRaw<ProductLinkOfferRow[]>`
             select
               id,
               "parentLinkId",
@@ -148,18 +146,15 @@ export async function listSavedProductViews(): Promise<SavedProductView[]> {
               "listingOrder",
               "isAd"
             from product_link_offers
-            where "parentLinkId" = any(string_to_array(${linkIds}, ',')::int[])
+            where "parentLinkId" in (${Prisma.join(linkIds)})
             order by
               "parentLinkId" asc,
               "listingOrder" asc nulls last,
               id asc
-          `) as ProductLinkOfferRow[])
-        : [];
+          `
+      : [];
 
-    return masters.map((master) => toSavedProductView(master, links, offers));
-  } finally {
-    await sql.close();
-  }
+  return masters.map((master) => toSavedProductView(master, links, offers));
 }
 
 export async function getSavedProductView(masterId: number): Promise<SavedProductView | null> {
