@@ -60,6 +60,45 @@ enum ProductInputKind {
   URL
 }
 
+/// AI provider 호출 로그
+model AiRequestLog {
+  /// 내부 ID
+  id           Int       @id @default(autoincrement())
+  /// provider 이름(openai, claude, gemini 등)
+  provider     String
+  /// 작업 구분(PRODUCT_KEYWORDS, PRODUCT_ATTRIBUTES, OCR 등)
+  task         String
+  /// 호출 모델명
+  model        String
+  /// SUCCESS/FAILED
+  status       String
+  /// 입력 데이터
+  input        Json
+  /// 출력 데이터
+  output       Json?
+  /// 에러 메시지
+  errorMessage String?
+  /// 프롬프트/스키마 버전 추적용 해시
+  promptHash   String?
+  /// 응답 소요 시간(ms)
+  latencyMs    Int?
+  /// 토큰/비용 등 provider 응답 메타
+  responseMeta Json?
+  /// 시작 시각
+  startedAt    DateTime  @default(now())
+  /// 종료 시각
+  finishedAt   DateTime?
+  /// 생성 시각
+  createdAt    DateTime  @default(now())
+  /// 수정 시각
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([provider, task, status])
+  @@index([model])
+  @@index([createdAt])
+  @@map("ai_request_logs")
+}
+
 /// 수집 대상 마켓 설정
 model Market {
   id                       Int      @id @default(autoincrement())
@@ -170,7 +209,7 @@ model ScrapeLog {
   /// 수정 시각
   updatedAt     DateTime  @default(now()) @updatedAt
 
-  market   Market?   @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  market   Market?          @relation(fields: [marketId], references: [id], onDelete: SetNull)
   products Product[]
   listings ProductListing[]
 
@@ -211,17 +250,125 @@ model ProductMaster {
   /// 수정 시각
   updatedAt       DateTime @default(now()) @updatedAt
 
-  inputLinks       ProductInputLink[]
-  products         Product[]
-  analyses         ProductAnalysis[]
-  userProducts     UserProduct[]
-  productRelations ProductRelation[]
-  outboundClicks   OutboundClick[]
+  inputLinks        ProductInputLink[]
+  products          Product[]
+  analyses          ProductAnalysis[]
+  userProducts      UserProduct[]
+  productRelations  ProductRelation[]
+  productLinks      ProductLink[]
+  productLinkOffers ProductLinkOffer[]
+  outboundClicks    OutboundClick[]
 
   @@unique([matchKey])
   @@index([normalizedName])
   @@index([brand])
   @@map("product_masters")
+}
+
+/// 마스터 상품 기준 외부 추천/가격비교 링크 후보
+model ProductLink {
+  /// 내부 ID
+  id              Int      @id @default(autoincrement())
+  /// 기준 마스터 상품 ID
+  masterId        Int
+  /// 연결된 상품 ID
+  productId       Int?
+  /// 마켓 식별명(kurly, danawa 등)
+  marketName      String
+  /// 마켓 상품 번호 또는 광고 노출 ID
+  marketProductNo String
+  /// 마켓 아이템/판매처 번호
+  marketItemNo    String?
+  /// 링크 종류(DANAWA_CATALOG, DANAWA_AD_CATALOG, DANAWA_AD_DIRECT 등)
+  linkType        String
+  /// 동일 상품/추천 상품 구분
+  relationKind    String
+  /// 검색에 사용한 키워드
+  searchKeyword   String?
+  /// 외부 이동 URL
+  sourceUrl       String
+  /// 수집 시점 상품명
+  name            String
+  /// 수집 시점 이미지 URL
+  imageUrl        String?
+  /// 수집 시점 가격
+  price           Int?
+  /// 검색 결과 노출 순서
+  listingOrder    Int?
+  /// 광고/스폰서 노출 여부
+  isAd            Boolean  @default(false)
+  /// 원본/보조 데이터
+  raw             Json?
+  /// 생성 시각
+  createdAt       DateTime @default(now())
+  /// 수정 시각
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  master  ProductMaster      @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  product Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  offers  ProductLinkOffer[]
+
+  @@unique([masterId, marketName, marketProductNo, marketItemNo])
+  @@index([masterId, relationKind, listingOrder])
+  @@index([marketName, linkType, isAd])
+  @@map("product_links")
+}
+
+/// 카탈로그/검색 링크 하위의 실제 판매처 링크 후보
+model ProductLinkOffer {
+  /// 내부 ID
+  id              Int      @id @default(autoincrement())
+  /// 기준 마스터 상품 ID
+  masterId        Int
+  /// 상위 후보 링크 ID
+  parentLinkId    Int
+  /// 연결된 실제 상품 ID
+  productId       Int?
+  /// 판매처 마켓 식별명(coupang, gmarket 등)
+  marketName      String
+  /// 판매처 상품 번호
+  marketProductNo String
+  /// 판매처 아이템/옵션 번호
+  marketItemNo    String?
+  /// 판매처 화면 노출명
+  mallName        String
+  /// 판매자명
+  sellerName      String?
+  /// 외부 이동 URL
+  sourceUrl       String
+  /// 수집 시점 상품명
+  name            String
+  /// 수집 시점 이미지 URL
+  imageUrl        String?
+  /// 수집 시점 가격
+  price           Int?
+  /// 배송비
+  shippingFee     Int?
+  /// 배송비 포함 최종가
+  finalPrice      Int?
+  /// 배송/혜택 문구
+  deliveryText    String?
+  /// 판매/재고 상태
+  availability    String?
+  /// 카탈로그 내 노출 순서
+  listingOrder    Int?
+  /// 광고/스폰서 여부
+  isAd            Boolean  @default(false)
+  /// 원본/보조 데이터
+  raw             Json?
+  /// 생성 시각
+  createdAt       DateTime @default(now())
+  /// 수정 시각
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  master     ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  parentLink ProductLink   @relation(fields: [parentLinkId], references: [id], onDelete: Cascade)
+  product    Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([parentLinkId, marketName, marketProductNo, marketItemNo])
+  @@index([masterId, listingOrder])
+  @@index([marketName, price])
+  @@map("product_link_offers")
 }
 
 /// 사용자가 최초 입력한 상품 링크
@@ -302,14 +449,16 @@ model Product {
   /// 수정 시각
   updatedAt         DateTime @default(now()) @updatedAt
 
-  master         ProductMaster?     @relation(fields: [masterId], references: [id], onDelete: SetNull)
-  scrapeLog      ScrapeLog?         @relation(fields: [scrapeLogId], references: [id], onDelete: SetNull)
-  inputLinks     ProductInputLink[]
-  attributes     ProductAttribute[]
-  relationsFrom  ProductRelation[]  @relation("ProductRelationSource")
-  relationsTo    ProductRelation[]  @relation("ProductRelationTarget")
-  outboundClicks OutboundClick[]
-  listings       ProductListing[]
+  master            ProductMaster?     @relation(fields: [masterId], references: [id], onDelete: SetNull)
+  scrapeLog         ScrapeLog?         @relation(fields: [scrapeLogId], references: [id], onDelete: SetNull)
+  inputLinks        ProductInputLink[]
+  productLinks      ProductLink[]
+  productLinkOffers ProductLinkOffer[]
+  attributes        ProductAttribute[]
+  relationsFrom     ProductRelation[]  @relation("ProductRelationSource")
+  relationsTo       ProductRelation[]  @relation("ProductRelationTarget")
+  outboundClicks    OutboundClick[]
+  listings          ProductListing[]
 
   @@unique([marketName, marketProductNo])
   @@index([masterId])

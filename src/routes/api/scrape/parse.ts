@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { scrapeParseAndSaveLink } from "@/server/services/scrape-and-parse-link";
+import { scrapeParseAndSaveLink } from "@/server/services/scrape/scrape-link-parser";
 
 const scrapeParseRequest = z
   .object({

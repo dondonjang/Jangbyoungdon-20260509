@@ -13,21 +13,27 @@ const removeProductInput = z.object({
 });
 
 export const listFrequentProductsFn = createServerFn({ method: "GET" }).handler(async () => {
-  const { listFrequentProducts } = await import("@/server/services/product-analysis");
+  const { listFrequentProducts } = await import("@/server/services/product/product-analysis");
   return listFrequentProducts();
+});
+
+export const listSavedProductViewsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { listSavedProductViews } = await import("@/server/services/product/saved-product-view");
+  return listSavedProductViews();
 });
 
 export const analyzeFrequentProductFn = createServerFn({ method: "POST" })
   .inputValidator(analyzeProductInput)
   .handler(async ({ data }) => {
-    const { analyzeAndSaveFrequentProduct } = await import("@/server/services/product-analysis");
+    const { analyzeAndSaveFrequentProduct } =
+      await import("@/server/services/product/product-analysis");
     return analyzeAndSaveFrequentProduct(data.value);
   });
 
 export const removeFrequentProductFn = createServerFn({ method: "POST" })
   .inputValidator(removeProductInput)
   .handler(async ({ data }) => {
-    const { removeFrequentProduct } = await import("@/server/services/product-analysis");
+    const { removeFrequentProduct } = await import("@/server/services/product/product-analysis");
     await removeFrequentProduct(data.id);
     return { ok: true };
   });

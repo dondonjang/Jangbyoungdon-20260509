@@ -1,4 +1,5 @@
 import type { ProductRecommendation } from "@/lib/product-types";
+import { createPromptHash, saveAiRequestLog } from "@/server/services/ai/ai-request-log";
 
 const KRW_PER_USD = 1500;
 const ESTIMATED_INPUT_TOKENS_PER_CALL = 2000;
@@ -62,6 +63,7 @@ type JsonSchema = {
 
 type OpenAIResponseOutput = {
   output_text?: string;
+  usage?: unknown;
   output?: Array<{
     content?: Array<{
       type?: string;
@@ -173,12 +175,14 @@ function extractOutputText(response: OpenAIResponseOutput) {
 // Responses API에 JSON schema를 전달하고, 스키마에 맞는 객체로 파싱한다.
 async function callOpenAIStructuredJson<T>({
   model,
+  task,
   schemaName,
   schema,
   systemPrompt,
   userPrompt,
 }: {
   model: string;
+  task: string;
   schemaName: string;
   schema: JsonSchema;
   systemPrompt: string;
@@ -192,6 +196,8 @@ async function callOpenAIStructuredJson<T>({
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = new Date();
+  const promptHash = createPromptHash(`${schemaName}:${systemPrompt}:${JSON.stringify(schema)}`);
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -235,9 +241,66 @@ async function callOpenAIStructuredJson<T>({
       throw new Error("OpenAI API 응답에서 JSON 텍스트를 찾지 못했습니다.");
     }
 
-    return JSON.parse(outputText) as T;
+    const parsed = JSON.parse(outputText) as T;
+    await saveOpenAIRequestLog({
+      task,
+      model,
+      status: "SUCCESS",
+      input: { schemaName, systemPrompt, userPrompt },
+      output: parsed,
+      promptHash,
+      startedAt,
+      responseMeta: { usage: json.usage },
+    });
+
+    return parsed;
+  } catch (error) {
+    await saveOpenAIRequestLog({
+      task,
+      model,
+      status: "FAILED",
+      input: { schemaName, systemPrompt, userPrompt },
+      errorMessage: error instanceof Error ? error.message : String(error),
+      promptHash,
+      startedAt,
+    });
+
+    throw error;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function saveOpenAIRequestLog(input: {
+  task: string;
+  model: string;
+  status: "SUCCESS" | "FAILED";
+  input: unknown;
+  output?: unknown;
+  errorMessage?: string;
+  promptHash: string;
+  startedAt: Date;
+  responseMeta?: unknown;
+}) {
+  const finishedAt = new Date();
+
+  try {
+    await saveAiRequestLog({
+      provider: "openai",
+      task: input.task,
+      model: input.model,
+      status: input.status,
+      input: input.input,
+      output: input.output,
+      errorMessage: input.errorMessage,
+      promptHash: input.promptHash,
+      latencyMs: finishedAt.getTime() - input.startedAt.getTime(),
+      responseMeta: input.responseMeta,
+      startedAt: input.startedAt,
+      finishedAt,
+    });
+  } catch {
+    // AI 로그 저장 실패가 실제 상품 분석 흐름을 막으면 안 된다.
   }
 }
 
@@ -358,6 +421,7 @@ export async function recommendProductSearchKeywords(
   try {
     const recommendation = await callOpenAIStructuredJson<ProductSearchKeywordRecommendation>({
       model: textModel,
+      task: "PRODUCT_SEARCH_KEYWORDS",
       schemaName: "product_search_keywords",
       schema: PRODUCT_SEARCH_KEYWORD_SCHEMA,
       systemPrompt:

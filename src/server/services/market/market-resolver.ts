@@ -1,8 +1,8 @@
 import type { MarketResolveResult } from "@/lib/market-types";
-import { executeMarketRequest } from "@/server/services/market/client";
-import { getMarketForUrl } from "@/server/services/market/config";
-import { resolveKurlyRequest } from "@/server/services/market/adapters/kurly";
-import type { MarketResolverRegistry } from "@/server/services/market/types";
+import { resolveKurlyRequest } from "@/server/services/market/adapters/kurly-market-adapter";
+import { executeMarketRequest } from "@/server/services/market/market-client";
+import { getMarketForUrl } from "@/server/services/market/market-config";
+import type { MarketResolverRegistry } from "@/server/services/market/market-types";
 
 const resolvers: MarketResolverRegistry = {
   kurly: resolveKurlyRequest,
