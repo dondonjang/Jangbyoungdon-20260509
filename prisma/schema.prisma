@@ -280,6 +280,10 @@ model ProductLink {
   marketProductNo String
   /// 마켓 아이템/판매처 번호
   marketItemNo    String?
+  /// 다나와 광고/카탈로그에서 노출된 실제 쇼핑몰 코드
+  mallCode        String?
+  /// 다나와 광고/카탈로그에서 노출된 실제 쇼핑몰명
+  mallName        String?
   /// 링크 종류(DANAWA_CATALOG, DANAWA_AD_CATALOG, DANAWA_AD_DIRECT 등)
   linkType        String
   /// 동일 상품/추천 상품 구분

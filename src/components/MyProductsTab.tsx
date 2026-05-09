@@ -14,7 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MY_PRODUCTS_COPY } from "@/lib/my-products-copy";
-import type { ProductLinkOfferView, ProductLinkView, SavedProductView } from "@/lib/product-types";
+import type {
+  OtherUserInterestProductView,
+  ProductLinkOfferView,
+  ProductLinkView,
+  SavedProductView,
+} from "@/lib/product-types";
 import { formatKRW } from "@/lib/product-types";
 
 type Props = {
@@ -41,6 +46,9 @@ type PriceRow = {
   listingOrder: number | null;
 };
 
+const PRICE_ROW_PREVIEW_COUNT = 5;
+const POPULAR_PRODUCT_PREVIEW_COUNT = 3;
+
 export function MyProductsTab({
   products,
   page,
@@ -62,7 +70,7 @@ export function MyProductsTab({
         <p className="text-sm text-muted-foreground mb-5 max-w-sm">
           채팅 탭에서 상품 상세 페이지 링크를 보내주시면
           <br />
-          최저가와 유사 추천 상품을 보여드려요
+          최저가와 인기 상품을 보여드려요
         </p>
         <Button onClick={onGoToChat} className="rounded-full">
           채팅 시작하기
@@ -121,7 +129,11 @@ function ProductCard({
 }) {
   const [recOpen, setRecOpen] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const hasPriceComparisonData = product.sameProductLinks.length > 0;
   const priceRows = buildPriceRows(product);
+  const hiddenPriceRowCount = Math.max(0, priceRows.length - PRICE_ROW_PREVIEW_COUNT);
+  const visiblePriceRows = priceOpen ? priceRows : priceRows.slice(0, PRICE_ROW_PREVIEW_COUNT);
   const lowestFinalPrice = Math.min(
     ...priceRows
       .map((row) => row.finalPrice ?? row.price)
@@ -223,75 +235,96 @@ function ProductCard({
           </div>
         )}
 
-        {priceRows.length === 0 ? (
+        {!hasPriceComparisonData ? (
           <div className="mt-4 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            아직 비교 가능한 판매처가 없어요.
+            가격비교 상품을 수집 중입니다.
           </div>
         ) : (
-          <div className="mt-4 overflow-x-auto -mx-2">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="font-medium py-2 px-2">쇼핑몰</th>
-                  <th className="font-medium py-2 px-2">상품명</th>
-                  <th className="font-medium py-2 px-2 text-right">최종가</th>
-                  <th className="font-medium py-2 px-2 text-right">링크</th>
-                </tr>
-              </thead>
-              <tbody>
-                {priceRows.map((row) => {
-                  const comparePrice = row.finalPrice ?? row.price;
-                  const isLowest = comparePrice !== null && comparePrice === lowestFinalPrice;
+          <div className="mt-4">
+            <div className="overflow-x-auto -mx-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                    <th className="font-medium py-2 px-2">쇼핑몰</th>
+                    <th className="font-medium py-2 px-2">상품명</th>
+                    <th className="font-medium py-2 px-2 text-right">최종가</th>
+                    <th className="font-medium py-2 px-2 text-right">링크</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiblePriceRows.map((row) => {
+                    const comparePrice = row.finalPrice ?? row.price;
+                    const isLowest = comparePrice !== null && comparePrice === lowestFinalPrice;
 
-                  return (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-border last:border-0 ${
-                        isLowest ? "bg-success/10" : ""
-                      }`}
-                    >
-                      <td className="py-3 px-2 font-medium whitespace-nowrap">
-                        <span className="flex items-center gap-2">
-                          {row.shop}
-                          {row.isAd && (
-                            <Badge variant="outline" className="rounded-full text-[10px] h-5 px-2">
-                              광고
-                            </Badge>
-                          )}
-                          {isLowest && (
-                            <Badge className="bg-success text-success-foreground hover:bg-success rounded-full text-[10px] h-5 px-2">
-                              최저가
-                            </Badge>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 min-w-[180px]">
-                        <p className="line-clamp-2 text-xs leading-relaxed">{row.title}</p>
-                      </td>
-                      <td
-                        className={`py-3 px-2 text-right tabular-nums whitespace-nowrap ${
-                          isLowest ? "font-bold text-success" : ""
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`border-b border-border last:border-0 ${
+                          isLowest ? "bg-success/10" : ""
                         }`}
                       >
-                        {comparePrice === null ? "-" : formatKRW(comparePrice)}
-                      </td>
-                      <td className="py-3 px-2 text-right">
-                        <Button
-                          size="sm"
-                          variant={isLowest ? "default" : "outline"}
-                          className="rounded-full h-8 text-xs"
-                          asChild
+                        <td className="py-3 px-2 font-medium whitespace-nowrap">
+                          <span className="flex items-center gap-2">
+                            {row.shop}
+                            {isLowest && (
+                              <Badge className="bg-success text-success-foreground hover:bg-success rounded-full text-[10px] h-5 px-2">
+                                최저가
+                              </Badge>
+                            )}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 min-w-[180px]">
+                          <p className="line-clamp-2 text-xs leading-relaxed">{row.title}</p>
+                        </td>
+                        <td
+                          className={`py-3 px-2 text-right tabular-nums whitespace-nowrap ${
+                            isLowest ? "font-bold text-success" : ""
+                          }`}
                         >
-                          <a href={row.sourceUrl} target="_blank" rel="noreferrer">
-                            구매하기 <ExternalLink className="h-3 w-3 ml-1" />
-                          </a>
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          {comparePrice === null ? "-" : formatKRW(comparePrice)}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <Button
+                            size="sm"
+                            variant={isLowest ? "default" : "outline"}
+                            className="rounded-full h-8 text-xs"
+                            asChild
+                          >
+                            <a href={row.sourceUrl} target="_blank" rel="noreferrer">
+                              구매하기 <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {hiddenPriceRowCount > 0 && (
+              <div className="mt-3 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-full px-4 text-xs"
+                  onClick={() => setPriceOpen((open) => !open)}
+                  aria-expanded={priceOpen}
+                >
+                  {priceOpen ? (
+                    <>
+                      접기 <ChevronUp className="ml-1 h-3.5 w-3.5" />
+                    </>
+                  ) : (
+                    <>
+                      판매처 {hiddenPriceRowCount}개 더보기
+                      <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -303,7 +336,7 @@ function ProductCard({
           className="w-full flex items-center justify-between px-5 py-3.5 text-left"
           aria-expanded={recOpen}
         >
-          <span className="font-semibold text-sm">유사 추천 상품</span>
+          <span className="font-semibold text-sm">다른 사용자들이 많이 찾는 인기 상품</span>
           {recOpen ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
@@ -312,7 +345,7 @@ function ProductCard({
         </button>
         {recOpen && (
           <div className="px-5 pb-5">
-            <RecommendationGroup title="유사 추천 상품" links={product.recommendedProductLinks} />
+            <PopularProductGroup products={product.otherUserInterestProducts} />
           </div>
         )}
       </div>
@@ -320,66 +353,76 @@ function ProductCard({
   );
 }
 
-function RecommendationGroup({ title, links }: { title: string; links: ProductLinkView[] }) {
-  const visibleLinks = links.slice(0, 3);
+function PopularProductGroup({ products }: { products: OtherUserInterestProductView[] }) {
+  const visibleProducts = products.slice(0, POPULAR_PRODUCT_PREVIEW_COUNT);
+
+  if (visibleProducts.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-sm text-muted-foreground">
+        다른 사용자 관심 상품을 분석 중입니다.
+      </div>
+    );
+  }
 
   return (
-    <section className="mb-5 last:mb-0">
-      <h4 className="text-xs font-semibold text-muted-foreground mb-2">{title}</h4>
-      {visibleLinks.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-sm text-muted-foreground">
-          아직 추천 링크가 없어요.
-        </div>
-      ) : (
-        <div className="-mx-5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-3 md:gap-3 md:overflow-visible md:px-0 md:pb-0">
-          <div className="flex snap-x snap-mandatory gap-3 md:contents">
-            {visibleLinks.map((link) => (
-              <div
-                key={link.id}
-                className="min-w-0 basis-[calc((100%-0.75rem)/2)] shrink-0 snap-start md:contents"
-              >
-                <RecommendationCard link={link} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <section>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {visibleProducts.map((product) => (
+          <PopularProductCard key={product.id} product={product} />
+        ))}
+      </div>
     </section>
   );
 }
 
-function RecommendationCard({ link }: { link: ProductLinkView }) {
-  const lowestOffer = findLowestOffer(link.offers);
-  const price = lowestOffer?.finalPrice ?? lowestOffer?.price ?? link.price;
-  const href = lowestOffer?.sourceUrl || link.sourceUrl;
+function PopularProductCard({ product }: { product: OtherUserInterestProductView }) {
+  const source = product.sourceProduct;
 
   return (
-    <div className="rounded-xl bg-card border border-border p-3 flex flex-col shadow-sm">
-      <div className="aspect-square rounded-lg bg-secondary flex items-center justify-center mb-3 overflow-hidden">
-        {link.imageUrl ? (
-          <img src={link.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-        ) : (
-          <ImageIcon className="h-7 w-7 text-muted-foreground" />
+    <div className="rounded-xl bg-card border border-border p-3 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-secondary flex items-center justify-center">
+          {source?.imageUrl ? (
+            <img
+              src={source.imageUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <ImageIcon className="h-7 w-7 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <Badge className="h-5 rounded-full px-2 text-[10px]">
+              관심 {product.interestCount.toLocaleString("ko-KR")}명
+            </Badge>
+          </div>
+          <h5 className="line-clamp-2 text-sm font-medium leading-snug">{product.displayName}</h5>
+          <p className="mt-1 text-sm font-bold tabular-nums">
+            {source ? formatKRW(source.price) : "가격 확인 중"}
+          </p>
+        </div>
+      </div>
+      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        {product.summary || product.brand || "다른 사용자들이 저장한 관심 상품"}
+      </p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-[11px] text-muted-foreground">
+          {source?.marketName || "관심 상품"}
+        </span>
+        {source && (
+          <Button size="sm" variant="outline" className="h-8 rounded-full px-3 text-xs" asChild>
+            <a href={source.sourceUrl} target="_blank" rel="noreferrer">
+              보기
+            </a>
+          </Button>
         )}
       </div>
-      <h5 className="text-sm font-medium leading-snug line-clamp-2 min-h-[2.5rem]">{link.name}</h5>
-      <p className="text-base font-bold mt-1.5 tabular-nums">
-        {price === null ? "가격 확인 중" : formatKRW(price)}
-      </p>
-      <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed flex-1">
-        {lowestOffer
-          ? `${lowestOffer.mallName} 기준 ${link.offers.length}개 판매처`
-          : link.searchKeyword || link.linkType}
-      </p>
-      <Button size="sm" variant="outline" className="rounded-full text-xs mt-3 w-full h-8" asChild>
-        <a href={href} target="_blank" rel="noreferrer">
-          자세히 보기
-        </a>
-      </Button>
     </div>
   );
 }
-
 function buildPriceRows(product: SavedProductView): PriceRow[] {
   const sourceRows: PriceRow[] = product.sourceProduct
     ? [
@@ -426,7 +469,7 @@ function toOfferPriceRow(link: ProductLinkView, offer: ProductLinkOfferView): Pr
 function toLinkPriceRow(link: ProductLinkView): PriceRow {
   return {
     id: `link-${link.id}`,
-    shop: link.marketName,
+    shop: link.mallName || link.marketName,
     title: link.name,
     price: link.price,
     shippingFee: null,
@@ -435,12 +478,4 @@ function toLinkPriceRow(link: ProductLinkView): PriceRow {
     isAd: link.isAd,
     listingOrder: link.listingOrder,
   };
-}
-
-function findLowestOffer(offers: ProductLinkOfferView[]) {
-  return [...offers].sort((a, b) => {
-    const aPrice = a.finalPrice ?? a.price ?? Number.MAX_SAFE_INTEGER;
-    const bPrice = b.finalPrice ?? b.price ?? Number.MAX_SAFE_INTEGER;
-    return aPrice - bPrice;
-  })[0];
 }

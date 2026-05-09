@@ -20,6 +20,8 @@ export type DanawaSrpRequest = {
 export type DanawaSearchProduct = {
   marketProductNo: string;
   marketItemNo: string | null;
+  mallCode: string | null;
+  mallName: string | null;
   linkType: (typeof DANAWA_LINK_TYPE)[keyof typeof DANAWA_LINK_TYPE];
   isCatalog: boolean;
   isAd: boolean;
@@ -126,6 +128,8 @@ function parseDanawaSearchProduct(block: string, page: number): DanawaSearchProd
     "https://search.danawa.com",
   );
   const marketItemNo = readDanawaMarketItemNo(sourceUrl) || itemCode || null;
+  const mallCode = readDanawaMallCode(sourceUrl);
+  const mallName = readDanawaMallName(block);
   const isCatalog = Boolean(catalogProductNo);
   const isAd = !catalogProductNo || isDanawaAdBlock(block);
   const imageTag = block.match(/<img\b[^>]*>/)?.[0] || "";
@@ -143,6 +147,8 @@ function parseDanawaSearchProduct(block: string, page: number): DanawaSearchProd
   return {
     marketProductNo,
     marketItemNo,
+    mallCode,
+    mallName,
     linkType: readDanawaLinkType({ isAd, isCatalog }),
     isCatalog,
     isAd,
@@ -203,6 +209,27 @@ function readDanawaMarketItemNo(sourceUrl: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function readDanawaMallCode(sourceUrl: string | undefined) {
+  if (!sourceUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(sourceUrl);
+    return url.searchParams.get("cmpny_c");
+  } catch {
+    return null;
+  }
+}
+
+function readDanawaMallName(block: string) {
+  const mallIcon = readTagByClass(block, "mall_icon", "p");
+  return (
+    cleanNullableText(readFirst(mallIcon || "", [/alt=["'](?<value>[^"']+)["']/])) ||
+    cleanNullableText(stripHtml(mallIcon || ""))
+  );
 }
 
 function readTagByClass(html: string, className: string, tagName: string) {

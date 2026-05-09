@@ -22,6 +22,8 @@ export type ProductLinkView = {
   marketName: string;
   marketProductNo: string;
   marketItemNo: string | null;
+  mallCode: string | null;
+  mallName: string | null;
   linkType: string;
   relationKind: "SAME_PRODUCT" | "RECOMMENDED_PRODUCT" | string;
   searchKeyword: string | null;
@@ -35,9 +37,30 @@ export type ProductLinkView = {
   reviewCount: number | null;
   rating: number | null;
   summary: string | null;
+  recommendationScore: number | null;
+  recommendationTier: string | null;
+  recommendationReasons: string[];
   listingOrder: number | null;
   isAd: boolean;
   offers: ProductLinkOfferView[];
+};
+
+export type OtherUserInterestProductView = {
+  id: number;
+  displayName: string;
+  brand: string | null;
+  summary: string | null;
+  interestCount: number;
+  sourceProduct: {
+    id: number;
+    marketName: string;
+    marketProductNo: string;
+    sourceUrl: string;
+    name: string;
+    imageUrl: string;
+    price: number;
+  } | null;
+  updatedAt: string;
 };
 
 export type SavedProductView = {
@@ -61,6 +84,7 @@ export type SavedProductView = {
   } | null;
   sameProductLinks: ProductLinkView[];
   recommendedProductLinks: ProductLinkView[];
+  otherUserInterestProducts: OtherUserInterestProductView[];
   createdAt: string;
   updatedAt: string;
 };

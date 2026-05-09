@@ -16,6 +16,8 @@ import { Route as ApiScrapeTargetsRouteImport } from './routes/api/scrape/target
 import { Route as ApiScrapeParseRouteImport } from './routes/api/scrape/parse'
 import { Route as ApiProductsAnalyzeRouteImport } from './routes/api/products/analyze'
 import { Route as ApiInternalProductsRouteImport } from './routes/api/internal/products'
+import { Route as ApiCronCollectRelatedProductsRouteImport } from './routes/api/cron/collect-related-products'
+import { Route as ApiCronCollectPriceComparisonsRouteImport } from './routes/api/cron/collect-price-comparisons'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,10 +54,24 @@ const ApiInternalProductsRoute = ApiInternalProductsRouteImport.update({
   path: '/api/internal/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronCollectRelatedProductsRoute =
+  ApiCronCollectRelatedProductsRouteImport.update({
+    id: '/api/cron/collect-related-products',
+    path: '/api/cron/collect-related-products',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiCronCollectPriceComparisonsRoute =
+  ApiCronCollectPriceComparisonsRouteImport.update({
+    id: '/api/cron/collect-price-comparisons',
+    path: '/api/cron/collect-price-comparisons',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/cron/collect-price-comparisons': typeof ApiCronCollectPriceComparisonsRoute
+  '/api/cron/collect-related-products': typeof ApiCronCollectRelatedProductsRoute
   '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/products/analyze': typeof ApiProductsAnalyzeRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
@@ -65,6 +81,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/cron/collect-price-comparisons': typeof ApiCronCollectPriceComparisonsRoute
+  '/api/cron/collect-related-products': typeof ApiCronCollectRelatedProductsRoute
   '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/products/analyze': typeof ApiProductsAnalyzeRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
@@ -75,6 +93,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/cron/collect-price-comparisons': typeof ApiCronCollectPriceComparisonsRoute
+  '/api/cron/collect-related-products': typeof ApiCronCollectRelatedProductsRoute
   '/api/internal/products': typeof ApiInternalProductsRoute
   '/api/products/analyze': typeof ApiProductsAnalyzeRoute
   '/api/scrape/parse': typeof ApiScrapeParseRoute
@@ -86,6 +106,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/markets'
+    | '/api/cron/collect-price-comparisons'
+    | '/api/cron/collect-related-products'
     | '/api/internal/products'
     | '/api/products/analyze'
     | '/api/scrape/parse'
@@ -95,6 +117,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/markets'
+    | '/api/cron/collect-price-comparisons'
+    | '/api/cron/collect-related-products'
     | '/api/internal/products'
     | '/api/products/analyze'
     | '/api/scrape/parse'
@@ -104,6 +128,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/markets'
+    | '/api/cron/collect-price-comparisons'
+    | '/api/cron/collect-related-products'
     | '/api/internal/products'
     | '/api/products/analyze'
     | '/api/scrape/parse'
@@ -114,6 +140,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiMarketsRoute: typeof ApiMarketsRoute
+  ApiCronCollectPriceComparisonsRoute: typeof ApiCronCollectPriceComparisonsRoute
+  ApiCronCollectRelatedProductsRoute: typeof ApiCronCollectRelatedProductsRoute
   ApiInternalProductsRoute: typeof ApiInternalProductsRoute
   ApiProductsAnalyzeRoute: typeof ApiProductsAnalyzeRoute
   ApiScrapeParseRoute: typeof ApiScrapeParseRoute
@@ -172,12 +200,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/collect-related-products': {
+      id: '/api/cron/collect-related-products'
+      path: '/api/cron/collect-related-products'
+      fullPath: '/api/cron/collect-related-products'
+      preLoaderRoute: typeof ApiCronCollectRelatedProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/collect-price-comparisons': {
+      id: '/api/cron/collect-price-comparisons'
+      path: '/api/cron/collect-price-comparisons'
+      fullPath: '/api/cron/collect-price-comparisons'
+      preLoaderRoute: typeof ApiCronCollectPriceComparisonsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiMarketsRoute: ApiMarketsRoute,
+  ApiCronCollectPriceComparisonsRoute: ApiCronCollectPriceComparisonsRoute,
+  ApiCronCollectRelatedProductsRoute: ApiCronCollectRelatedProductsRoute,
   ApiInternalProductsRoute: ApiInternalProductsRoute,
   ApiProductsAnalyzeRoute: ApiProductsAnalyzeRoute,
   ApiScrapeParseRoute: ApiScrapeParseRoute,

@@ -1,4 +1,9 @@
 import { createPromptHash, saveAiRequestLog } from "@/server/services/ai/ai-request-log";
+import {
+  DEFAULT_PRODUCT_NEGATIVE_KEYWORDS,
+  isAccessoryProductName,
+  normalizeComparableText as normalizeText,
+} from "@/lib/product-rules";
 
 const KRW_PER_USD = 1500;
 const ESTIMATED_INPUT_TOKENS_PER_CALL = 2000;
@@ -91,6 +96,34 @@ export type ProductSearchKeywordRecommendation = {
   confidence: number;
 };
 
+export type ProductRecommendationCandidateInput = {
+  candidateKey: string;
+  name: string;
+  categoryName?: string | null;
+  summary?: string | null;
+  price?: number | null;
+  reviewCount?: number | null;
+  rating?: number | null;
+};
+
+export type ProductRecommendationCandidateFilterInput = {
+  sourceProductName: string;
+  sourceBrand?: string | null;
+  targetCategoryName?: string | null;
+  targetUnitCount?: number | null;
+  searchKeyword: string;
+  candidates: ProductRecommendationCandidateInput[];
+};
+
+export type ProductRecommendationCandidateFilter = {
+  acceptedCandidateKeys: string[];
+  rejectedCandidates: Array<{
+    candidateKey: string;
+    reason: string;
+  }>;
+  confidence: number;
+};
+
 const PRODUCT_SEARCH_KEYWORD_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -141,6 +174,37 @@ const PRODUCT_SEARCH_KEYWORD_SCHEMA = {
       minimum: 0,
       maximum: 1,
       description: "추천 키워드 품질에 대한 모델의 신뢰도입니다.",
+    },
+  },
+} satisfies JsonSchema;
+
+const PRODUCT_RECOMMENDATION_CANDIDATE_FILTER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["acceptedCandidateKeys", "rejectedCandidates", "confidence"],
+  properties: {
+    acceptedCandidateKeys: {
+      type: "array",
+      items: { type: "string" },
+      description: "추천 상품으로 사용할 수 있는 후보의 candidateKey 목록입니다.",
+    },
+    rejectedCandidates: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["candidateKey", "reason"],
+        properties: {
+          candidateKey: { type: "string" },
+          reason: { type: "string" },
+        },
+      },
+      description: "추천에서 제외한 후보와 제외 사유입니다.",
+    },
+    confidence: {
+      type: "number",
+      minimum: 0,
+      maximum: 1,
     },
   },
 } satisfies JsonSchema;
@@ -316,9 +380,57 @@ function fallbackProductSearchKeywords(
     sameProductKeywords: [baseKeyword || refinedProductName],
     relatedCoreAttributes: [relatedKeyword],
     relatedProductKeywords: [relatedKeyword],
-    negativeKeywords: ["중고", "리퍼", "해외직구"],
+    negativeKeywords: [...DEFAULT_PRODUCT_NEGATIVE_KEYWORDS],
     confidence: 0.3,
   };
+}
+
+function fallbackRecommendationCandidateFilter(
+  input: ProductRecommendationCandidateFilterInput,
+): ProductRecommendationCandidateFilter {
+  const rejectedCandidates = input.candidates
+    .filter((candidate) => isAccessoryCandidate(candidate.name))
+    .map((candidate) => ({
+      candidateKey: candidate.candidateKey,
+      reason: "보관함/용기/케이스 등 소모품 본품이 아닌 액세서리 후보",
+    }));
+  const rejectedKeys = new Set(rejectedCandidates.map((candidate) => candidate.candidateKey));
+
+  return {
+    acceptedCandidateKeys: input.candidates
+      .filter((candidate) => !rejectedKeys.has(candidate.candidateKey))
+      .map((candidate) => candidate.candidateKey),
+    rejectedCandidates,
+    confidence: 0.4,
+  };
+}
+
+function fallbackSameProductCandidateFilter(
+  input: ProductRecommendationCandidateFilterInput,
+): ProductRecommendationCandidateFilter {
+  const rejectedCandidates = input.candidates
+    .filter((candidate) => {
+      if (isAccessoryCandidate(candidate.name)) return true;
+      if (!input.sourceBrand) return false;
+      return !normalizeText(candidate.name).includes(normalizeText(input.sourceBrand));
+    })
+    .map((candidate) => ({
+      candidateKey: candidate.candidateKey,
+      reason: "동일 상품 판단에 필요한 브랜드/상품군 조건이 부족한 후보",
+    }));
+  const rejectedKeys = new Set(rejectedCandidates.map((candidate) => candidate.candidateKey));
+
+  return {
+    acceptedCandidateKeys: input.candidates
+      .filter((candidate) => !rejectedKeys.has(candidate.candidateKey))
+      .map((candidate) => candidate.candidateKey),
+    rejectedCandidates,
+    confidence: 0.35,
+  };
+}
+
+function isAccessoryCandidate(value: string) {
+  return isAccessoryProductName(value);
 }
 
 // 모델이 만든 검색어를 길이/중복/불필요한 영문 추측 기준으로 정리한다.
@@ -452,5 +564,135 @@ export async function recommendProductSearchKeywords(
     }
 
     return fallbackProductSearchKeywords({ ...input, productName });
+  }
+}
+
+// 다나와 검색 후보 중 실제 대체 구매 상품이 아닌 액세서리/보관함/부품류를 OpenAI로 걸러낸다.
+export async function filterProductRecommendationCandidates(
+  input: ProductRecommendationCandidateFilterInput,
+): Promise<ProductRecommendationCandidateFilter> {
+  const { textModel } = readOpenAIConfig();
+  const candidates = input.candidates.slice(0, 60);
+
+  if (candidates.length === 0) {
+    return { acceptedCandidateKeys: [], rejectedCandidates: [], confidence: 1 };
+  }
+
+  try {
+    const result = await callOpenAIStructuredJson<ProductRecommendationCandidateFilter>({
+      model: textModel,
+      task: "PRODUCT_RECOMMENDATION_CANDIDATE_FILTER",
+      schemaName: "product_recommendation_candidate_filter",
+      schema: PRODUCT_RECOMMENDATION_CANDIDATE_FILTER_SCHEMA,
+      systemPrompt:
+        "너는 한국 이커머스 추천 상품 검수자다. 검색 후보가 원 상품을 대체 구매할 수 있는 같은 상품군의 본품인지 판정한다. 보관함, 보관통, 케이스, 거치대, 디스펜서, 공병, 부품, 액세서리, 사은품, 관련 용품은 추천에서 제외한다. 브랜드가 달라도 상품군/용도/입수가 맞으면 허용한다. JSON schema에 맞는 결과만 반환한다.",
+      userPrompt: JSON.stringify({
+        sourceProductName: input.sourceProductName,
+        sourceBrand: input.sourceBrand || "",
+        targetCategoryName: input.targetCategoryName || "",
+        targetUnitCount: input.targetUnitCount || null,
+        searchKeyword: input.searchKeyword,
+        candidates: candidates.map((candidate) => ({
+          candidateKey: candidate.candidateKey,
+          name: candidate.name,
+          categoryName: candidate.categoryName || "",
+          summary: candidate.summary || "",
+          price: candidate.price || null,
+          reviewCount: candidate.reviewCount || 0,
+          rating: candidate.rating || null,
+        })),
+        guidance: [
+          "예: 세제 추천에서 '세제 보관함', '세제 통', '타블렛 보관통'은 제외한다.",
+          "예: 화장지 추천에서 휴지걸이, 케이스, 보관함은 제외한다.",
+          "예: 물티슈 추천에서 물티슈 캡, 케이스, 디스펜서는 제외한다.",
+          "동일 브랜드 제외 조건은 별도 점수화에서 처리하므로, 여기서는 본품 여부와 상품군 적합성을 우선 판단한다.",
+        ],
+      }),
+    });
+    const allowedKeys = new Set(candidates.map((candidate) => candidate.candidateKey));
+    const rejectedCandidates = result.rejectedCandidates.filter((candidate) =>
+      allowedKeys.has(candidate.candidateKey),
+    );
+    const rejectedKeys = new Set(rejectedCandidates.map((candidate) => candidate.candidateKey));
+    const acceptedCandidateKeys = result.acceptedCandidateKeys.filter(
+      (key) => allowedKeys.has(key) && !rejectedKeys.has(key),
+    );
+
+    return {
+      acceptedCandidateKeys,
+      rejectedCandidates,
+      confidence: Math.min(1, Math.max(0, result.confidence)),
+    };
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+
+    return fallbackRecommendationCandidateFilter({ ...input, candidates });
+  }
+}
+
+// 카탈로그가 없을 때 가격표에 직접 넣을 수 있는 동일 상품 후보만 OpenAI로 선별한다.
+export async function filterSameProductCandidates(
+  input: ProductRecommendationCandidateFilterInput,
+): Promise<ProductRecommendationCandidateFilter> {
+  const { textModel } = readOpenAIConfig();
+  const candidates = input.candidates.slice(0, 60);
+
+  if (candidates.length === 0) {
+    return { acceptedCandidateKeys: [], rejectedCandidates: [], confidence: 1 };
+  }
+
+  try {
+    const result = await callOpenAIStructuredJson<ProductRecommendationCandidateFilter>({
+      model: textModel,
+      task: "SAME_PRODUCT_CANDIDATE_FILTER",
+      schemaName: "same_product_candidate_filter",
+      schema: PRODUCT_RECOMMENDATION_CANDIDATE_FILTER_SCHEMA,
+      systemPrompt:
+        "너는 한국 이커머스 동일 상품 검수자다. 검색 후보가 원 상품과 같은 브랜드/상품군/핵심 규격/입수의 동일 상품인지 판정한다. 다나와 카탈로그를 못 찾는 경우에도 가격비교 표에 직접 넣을 수 있을 만큼 같은 상품만 허용한다. 유사 상품, 다른 브랜드 대체재, 중고/리퍼/해외직구, 보관함/케이스/부품/액세서리는 제외한다. JSON schema에 맞는 결과만 반환한다.",
+      userPrompt: JSON.stringify({
+        sourceProductName: input.sourceProductName,
+        sourceBrand: input.sourceBrand || "",
+        targetCategoryName: input.targetCategoryName || "",
+        targetUnitCount: input.targetUnitCount || null,
+        searchKeyword: input.searchKeyword,
+        candidates: candidates.map((candidate) => ({
+          candidateKey: candidate.candidateKey,
+          name: candidate.name,
+          categoryName: candidate.categoryName || "",
+          summary: candidate.summary || "",
+          price: candidate.price || null,
+          reviewCount: candidate.reviewCount || 0,
+          rating: candidate.rating || null,
+        })),
+        guidance: [
+          "동일 상품 가격비교 표에 들어갈 후보만 acceptedCandidateKeys에 넣는다.",
+          "브랜드가 다르면 원칙적으로 제외한다. 단, 원 상품 브랜드가 비어 있고 상품명/규격이 명확히 같은 경우만 허용한다.",
+          "수량, 용량, 롤 수, 매수, 팩 수가 크게 다르면 제외한다.",
+          "카탈로그가 아니어도 직접 구매 링크 후보로 쓸 수 있으면 허용한다.",
+        ],
+      }),
+    });
+    const allowedKeys = new Set(candidates.map((candidate) => candidate.candidateKey));
+    const rejectedCandidates = result.rejectedCandidates.filter((candidate) =>
+      allowedKeys.has(candidate.candidateKey),
+    );
+    const rejectedKeys = new Set(rejectedCandidates.map((candidate) => candidate.candidateKey));
+    const acceptedCandidateKeys = result.acceptedCandidateKeys.filter(
+      (key) => allowedKeys.has(key) && !rejectedKeys.has(key),
+    );
+
+    return {
+      acceptedCandidateKeys,
+      rejectedCandidates,
+      confidence: Math.min(1, Math.max(0, result.confidence)),
+    };
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+
+    return fallbackSameProductCandidateFilter({ ...input, candidates });
   }
 }

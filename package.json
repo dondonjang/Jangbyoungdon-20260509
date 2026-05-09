@@ -10,7 +10,6 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
-    "prisma:verify-timestamps": "node scripts/verify-prisma-timestamps.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {
