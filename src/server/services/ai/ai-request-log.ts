@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { createSqlClient } from "@/server/db/sql";
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/server/db/prisma";
 
 type AiRequestLogInput = {
   provider: string;
@@ -18,46 +19,25 @@ type AiRequestLogInput = {
 
 // provider가 바뀌어도 동일한 호출 로그 테이블을 쓰도록 AI 요청 기록을 공통화한다.
 export async function saveAiRequestLog(input: AiRequestLogInput) {
-  const sql = createSqlClient();
-
-  try {
-    await sql`
-      insert into ai_request_logs (
-        provider,
-        task,
-        model,
-        status,
-        input,
-        output,
-        "errorMessage",
-        "promptHash",
-        "latencyMs",
-        "responseMeta",
-        "startedAt",
-        "finishedAt",
-        "createdAt",
-        "updatedAt"
-      )
-      values (
-        ${input.provider},
-        ${input.task},
-        ${input.model},
-        ${input.status},
-        ${JSON.stringify(input.input)}::jsonb,
-        ${input.output === undefined ? null : JSON.stringify(input.output)}::jsonb,
-        ${input.errorMessage || null},
-        ${input.promptHash || null},
-        ${input.latencyMs ?? null},
-        ${input.responseMeta === undefined ? null : JSON.stringify(input.responseMeta)}::jsonb,
-        ${input.startedAt},
-        ${input.finishedAt || new Date()},
-        ${new Date()},
-        ${new Date()}
-      )
-    `;
-  } finally {
-    await sql.close();
-  }
+  await prisma.aiRequestLog.create({
+    data: {
+      provider: input.provider,
+      task: input.task,
+      model: input.model,
+      status: input.status,
+      input: input.input as Prisma.InputJsonValue,
+      output: input.output === undefined ? undefined : (input.output as Prisma.InputJsonValue),
+      errorMessage: input.errorMessage || null,
+      promptHash: input.promptHash || null,
+      latencyMs: input.latencyMs ?? null,
+      responseMeta:
+        input.responseMeta === undefined
+          ? undefined
+          : (input.responseMeta as Prisma.InputJsonValue),
+      startedAt: input.startedAt,
+      finishedAt: input.finishedAt || new Date(),
+    },
+  });
 }
 
 // 프롬프트 전문을 매번 비교하지 않고 버전 변화를 추적하기 위한 짧은 해시를 만든다.

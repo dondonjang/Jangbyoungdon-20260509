@@ -102,7 +102,7 @@ export function ChatTab({ onAddProduct, onGoToMyProducts }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] min-h-[500px]">
+    <div className="flex h-[calc(100dvh-156px)] min-h-0 flex-col md:h-[calc(100vh-180px)] md:min-h-[500px]">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {messages.map((m) => {
           if (m.role === "user") {

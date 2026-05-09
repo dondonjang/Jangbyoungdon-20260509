@@ -20,6 +20,7 @@ function NotFoundComponent() {
         <div className="mt-6">
           <Link
             to="/"
+            search={{ tab: "chat" }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             홈으로
@@ -70,15 +71,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "장바구니 비서" },
+      { title: "생필품 장바구니 비서" },
       {
         name: "description",
-        content: "상품 링크를 분석해 자주 사는 상품과 더 나은 구매 후보를 비교합니다.",
+        content: "반복 구매 스트레스를 줄여드립니다. 더 이상 시간 낭비하지마세요.",
       },
-      { property: "og:title", content: "장바구니 비서" },
+      { property: "og:title", content: "생필품 장바구니 비서" },
       {
         property: "og:description",
-        content: "상품 링크를 분석해 자주 사는 상품과 더 나은 구매 후보를 비교합니다.",
+        content: "반복 구매 스트레스를 줄여드립니다. 더 이상 시간 낭비하지마세요.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
