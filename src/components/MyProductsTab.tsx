@@ -17,7 +17,7 @@ type Props = {
   onGoToChat: () => void;
 };
 
-export function AnalysisTab({ products, onGoToChat }: Props) {
+export function MyProductsTab({ products, onGoToChat }: Props) {
   if (products.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
@@ -26,7 +26,7 @@ export function AnalysisTab({ products, onGoToChat }: Props) {
         </div>
         <h2 className="text-lg font-semibold mb-2">아직 자주 사는 상품이 없어요</h2>
         <p className="text-sm text-muted-foreground mb-5 max-w-sm">
-          채팅 탭에서 상품명이나 링크를 보내주시면
+          채팅 탭에서 상품 상세 페이지 링크를 보내주시면
           <br />
           동일 상품과 유사 추천 상품을 보여드려요
         </p>

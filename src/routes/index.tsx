@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ShoppingBag } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChatTab } from "@/components/ChatTab";
-import { AnalysisTab } from "@/components/AnalysisTab";
+import { MyProductsTab } from "@/components/MyProductsTab";
 import type { FrequentProduct } from "@/lib/product-types";
 import { analyzeFrequentProductFn, listFrequentProductsFn } from "@/lib/product-functions";
 
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [tab, setTab] = useState<"chat" | "analysis">("chat");
+  const [tab, setTab] = useState<"chat" | "myProducts">("chat");
   const [products, setProducts] = useState<FrequentProduct[]>([]);
   const listFrequentProducts = useServerFn(listFrequentProductsFn);
   const analyzeFrequentProduct = useServerFn(analyzeFrequentProductFn);
@@ -38,9 +38,9 @@ function Index() {
   }, [listFrequentProducts]);
 
   function handleTabChange(value: string) {
-    const nextTab = value as "chat" | "analysis";
+    const nextTab = value as "chat" | "myProducts";
     setTab(nextTab);
-    if (nextTab === "analysis") {
+    if (nextTab === "myProducts") {
       void loadFrequentProducts();
     }
   }
@@ -74,7 +74,7 @@ function Index() {
                 채팅
               </TabsTrigger>
               <TabsTrigger
-                value="analysis"
+                value="myProducts"
                 className="rounded-full data-[state=active]:bg-card data-[state=active]:shadow-sm text-sm font-medium"
               >
                 자주 사는 상품
@@ -90,11 +90,11 @@ function Index() {
           <TabsContent value="chat" className="mt-0">
             <ChatTab
               onAddProduct={handleAddProduct}
-              onGoToAnalysis={() => handleTabChange("analysis")}
+              onGoToMyProducts={() => handleTabChange("myProducts")}
             />
           </TabsContent>
-          <TabsContent value="analysis" className="mt-0">
-            <AnalysisTab products={products} onGoToChat={() => setTab("chat")} />
+          <TabsContent value="myProducts" className="mt-0">
+            <MyProductsTab products={products} onGoToChat={() => setTab("chat")} />
           </TabsContent>
         </Tabs>
       </div>
