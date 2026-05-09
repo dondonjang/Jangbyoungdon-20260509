@@ -12,7 +12,9 @@ for (const match of schema.matchAll(modelPattern)) {
   if (ignoredModels.has(modelName)) continue;
 
   const hasCreatedAt = /^\s*createdAt\s+DateTime\s+@default\(now\(\)\)/m.test(body);
-  const hasUpdatedAt = /^\s*updatedAt\s+DateTime\s+@updatedAt/m.test(body);
+  const hasUpdatedAt =
+    /^\s*updatedAt\s+DateTime\s+@updatedAt/m.test(body) ||
+    /^\s*updatedAt\s+DateTime\s+@default\(now\(\)\)\s+@updatedAt/m.test(body);
 
   if (!hasCreatedAt || !hasUpdatedAt) {
     failures.push({

@@ -21,6 +21,9 @@ export type ParsedProductCandidate = {
   image?: string;
   price?: number;
   currency?: string;
+  summary?: string;
+  reviewCount?: number;
+  rating?: number;
 };
 
 export type ParsedProductPage = {

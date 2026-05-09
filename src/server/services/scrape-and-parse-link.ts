@@ -117,6 +117,20 @@ function readProductNumber(value: unknown) {
   return undefined;
 }
 
+function readReviewCount(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.replace(/[^\d]/g, "");
+  if (!cleaned) return undefined;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readRating(value: unknown) {
+  const rating = readNumber(value);
+  return rating !== undefined && rating >= 0 && rating <= 5 ? rating : undefined;
+}
+
 function readImage(value: unknown, baseUrl: string) {
   if (typeof value === "string") return toAbsoluteUrl(value, baseUrl);
   if (Array.isArray(value)) return readImage(value[0], baseUrl);
@@ -248,12 +262,19 @@ function extractMarketApiProducts(data: unknown, sourceUrl: string) {
       const price = readProductNumber(product.discounted_price ?? product.sales_price);
       const image =
         readString(product.product_vertical_medium_url) || readString(product.list_image_url);
+      const reviewCount = readReviewCount(product.review_count);
+      const rating = readRating(product.rating ?? product.review_score ?? product.score);
       return {
         name: readString(product.name) || "이름 없는 상품",
         url: productNo ? toAbsoluteUrl(`/goods/${productNo}`, sourceUrl) : undefined,
         image,
         price,
         currency: price ? "KRW" : undefined,
+        ...(readString(product.short_description)
+          ? { summary: readString(product.short_description) }
+          : {}),
+        ...(reviewCount !== undefined ? { reviewCount } : {}),
+        ...(rating !== undefined ? { rating } : {}),
       } satisfies ParsedProductCandidate;
     });
 }

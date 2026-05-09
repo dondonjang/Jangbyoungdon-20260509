@@ -32,19 +32,6 @@ enum ScrapeStatus {
   FAILED
 }
 
-enum ScrapeTargetStatus {
-  ACTIVE
-  PAUSED
-  ARCHIVED
-}
-
-enum ProductScrapeStatus {
-  PENDING
-  SCRAPED
-  PARSED
-  FAILED
-}
-
 enum ProductInputStatus {
   PENDING
   SCRAPING
@@ -75,7 +62,7 @@ enum ProductInputKind {
 
 /// 수집 대상 마켓 설정
 model Market {
-  id                       String   @id @default(cuid())
+  id                       Int      @id @default(autoincrement())
   slug                     String   @unique
   companyName              String
   displayName              String
@@ -91,12 +78,9 @@ model Market {
   enabled                  Boolean  @default(true)
   notes                    String?
   createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  updatedAt                DateTime @default(now()) @updatedAt
 
-  scrapeTargets  ScrapeTarget[]
-  scrapeRuns     ScrapeRun[]
-  scrapedPages   ScrapedPage[]
-  products       Product[]
+  scrapeLogs     ScrapeLog[]
   outboundClicks OutboundClick[]
 
   @@map("markets")
@@ -104,11 +88,11 @@ model Market {
 
 /// 서비스 사용자
 model User {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   email     String?  @unique
   name      String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   products       UserProduct[]
   outboundClicks OutboundClick[]
@@ -116,110 +100,90 @@ model User {
   @@map("users")
 }
 
-/// 수집 대상 URL 통합 관리
+/// 주기적으로 확인할 수집 대상 URL
 model ScrapeTarget {
   /// 내부 ID
-  id            String             @id @default(cuid())
-  /// 마켓 ID
-  marketId      String?
-  /// 사람이 보는 이름
-  label         String?
+  id          Int      @id @default(autoincrement())
+  /// 마켓 식별명(kurly, danawa 등)
+  marketName  String
   /// 원본 URL
-  url           String
-  /// URL 중복 체크용 정규화 키
-  urlKey        String
-  /// 예상 페이지 종류
-  pageKind      ScrapePageKind     @default(UNKNOWN)
-  /// 수집 상태
-  status        ScrapeTargetStatus @default(ACTIVE)
-  /// 반복 수집 여부
-  isRecurring   Boolean            @default(false)
-  /// 태그 목록
-  tags          Json               @default("[]")
-  /// 마지막 수집 시각
-  lastScrapedAt DateTime?
-  /// 다음 수집 예정 시각
-  nextScrapeAt  DateTime?
-  /// 메모
-  notes         String?
+  url         String
+  /// PLP/PDP/SEARCH 등 링크 종류
+  linkType    String
+  /// 수집 카테고리
+  category    String?
+  /// 수집 대상 설명
+  description String?
+  /// 활성 여부
+  enabled     Boolean  @default(true)
   /// 생성 시각
-  createdAt     DateTime           @default(now())
+  createdAt   DateTime @default(now())
   /// 수정 시각
-  updatedAt     DateTime           @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
-  market     Market?     @relation(fields: [marketId], references: [id], onDelete: SetNull)
-  scrapeRuns ScrapeRun[]
-
-  @@unique([urlKey])
-  @@index([marketId, pageKind, status])
-  @@index([status, nextScrapeAt])
+  @@unique([marketName, url])
+  @@index([marketName, linkType, enabled])
+  @@index([category])
   @@map("scrape_targets")
 }
 
-/// URL/API 호출 단위 수집 실행 로그
-model ScrapeRun {
-  id             String         @id @default(cuid())
-  scrapeTargetId String?
-  marketId       String?
-  inputUrl       String
-  normalizedUrl  String
-  pageKind       ScrapePageKind @default(UNKNOWN)
-  source         ScrapeSource
-  status         ScrapeStatus   @default(PENDING)
-  request        Json?
-  responseMeta   Json?
-  errorMessage   String?
-  startedAt      DateTime       @default(now())
-  finishedAt     DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  scrapeTarget ScrapeTarget? @relation(fields: [scrapeTargetId], references: [id], onDelete: SetNull)
-  market       Market?       @relation(fields: [marketId], references: [id], onDelete: SetNull)
-  scrapedPage  ScrapedPage?
-
-  @@index([scrapeTargetId, status])
-  @@index([marketId, pageKind, status])
-  @@index([normalizedUrl])
-  @@map("scrape_runs")
-}
-
-/// 수집한 원본 페이지 또는 API 응답
-model ScrapedPage {
-  id            String         @id @default(cuid())
-  scrapeRunId   String         @unique
-  marketId      String?
-  url           String
+/// 수집 실행 로그와 원본 응답 저장
+model ScrapeLog {
+  /// 내부 ID
+  id            Int       @id @default(autoincrement())
+  /// 마켓 ID
+  marketId      Int?
+  /// 마켓 식별명(kurly, danawa 등)
+  marketName    String
+  /// 사용자가 입력하거나 스케줄에서 가져온 URL
+  inputUrl      String
+  /// 실제 호출한 최종 URL
   finalUrl      String
-  canonicalUrl  String?
-  pageKind      ScrapePageKind @default(UNKNOWN)
-  source        ScrapeSource
-  statusCode    Int
+  /// PLP/PDP/SEARCH 등 페이지 종류
+  pageKind      String
+  /// HTML/MARKET_API/BROWSER 등 수집 방식
+  source        String
+  /// SUCCESS/FAILED 등 실행 상태
+  status        String    @default("PENDING")
+  /// HTTP status code
+  statusCode    Int?
+  /// 응답 content-type
   contentType   String?
+  /// 요청 메타
+  request       Json?
+  /// 응답 메타
+  responseMeta  Json?
+  /// HTML 원본
   html          String?
+  /// JSON 원본
   rawJson       Json?
-  title         String?
-  description   String?
-  imageUrl      String?
-  parserVersion String
-  parsedAt      DateTime?
-  fetchedAt     DateTime       @default(now())
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  /// 실패 메시지
+  errorMessage  String?
+  /// 파서 버전
+  parserVersion String?
+  /// 시작 시각
+  startedAt     DateTime  @default(now())
+  /// 종료 시각
+  finishedAt    DateTime?
+  /// 생성 시각
+  createdAt     DateTime  @default(now())
+  /// 수정 시각
+  updatedAt     DateTime  @default(now()) @updatedAt
 
-  scrapeRun ScrapeRun @relation(fields: [scrapeRunId], references: [id], onDelete: Cascade)
-  market    Market?   @relation(fields: [marketId], references: [id], onDelete: SetNull)
-  products  Product[]
+  market   Market?   @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  products Product[]
+  listings ProductListing[]
 
-  @@index([marketId, pageKind, fetchedAt])
-  @@index([canonicalUrl])
-  @@map("scraped_pages")
+  @@index([marketName, pageKind, status])
+  @@index([finalUrl])
+  @@index([createdAt])
+  @@map("scrape_logs")
 }
 
 /// 사용자 입력 상품의 분석/비교 기준이 되는 마스터 상품
 model ProductMaster {
   /// 내부 ID
-  id              String   @id @default(cuid())
+  id              Int      @id @default(autoincrement())
   /// 정규화 상품명
   normalizedName  String
   /// 화면 노출 상품명
@@ -245,7 +209,7 @@ model ProductMaster {
   /// 생성 시각
   createdAt       DateTime @default(now())
   /// 수정 시각
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime @default(now()) @updatedAt
 
   inputLinks       ProductInputLink[]
   products         Product[]
@@ -263,11 +227,11 @@ model ProductMaster {
 /// 사용자가 최초 입력한 상품 링크
 model ProductInputLink {
   /// 내부 ID
-  id           String             @id @default(cuid())
+  id           Int                @id @default(autoincrement())
   /// 연결된 마스터 상품 ID
-  masterId     String
+  masterId     Int
   /// 최초 수집된 실제 상품 ID
-  productId    String?
+  productId    Int?
   /// 사용자가 입력한 원본 URL
   inputUrl     String
   /// 입력 URL 중복 체크용 정규화 키
@@ -281,7 +245,7 @@ model ProductInputLink {
   /// 생성 시각
   createdAt    DateTime           @default(now())
   /// 수정 시각
-  updatedAt    DateTime           @updatedAt
+  updatedAt    DateTime           @default(now()) @updatedAt
 
   master  ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
   product Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -294,95 +258,129 @@ model ProductInputLink {
 /// 마켓별 실제 상품/카탈로그 링크
 model Product {
   /// 내부 ID
-  id                String              @id @default(cuid())
+  id                Int      @id @default(autoincrement())
   /// 연결된 마스터 상품 ID
-  masterId          String
-  /// 마켓 ID
-  marketId          String
-  /// 수집 원본 페이지 ID
-  scrapedPageId     String?
-  /// 상품 URL
-  url               String
-  /// URL 중복 체크용 정규화 키
-  urlKey            String
-  /// canonical URL
-  canonicalUrl      String?
+  masterId          Int?
+  /// 수집 로그 ID
+  scrapeLogId       Int?
+  /// 마켓 식별명(kurly, danawa 등)
+  marketName        String
   /// 마켓 상품 번호
-  externalProductNo String?
+  marketProductNo   String
   /// 마켓 아이템/옵션 번호
-  externalItemNo    String?
-  /// 원본 상품명
-  title             String?
-  /// 정규화 상품명
-  normalizedTitle   String?
-  /// 화면 노출 상품명
-  displayName       String?
-  /// 브랜드
-  brand             String?
-  /// 카테고리
-  category          String?
+  marketItemNo      String?
+  /// 상품 원본 URL
+  sourceUrl         String
+  /// 상품명
+  name              String
   /// 대표 이미지 URL
-  imageUrl          String?
+  imageUrl          String
   /// 판매가
-  price             Int?
-  /// 정가
-  retailPrice       Int?
-  /// 통화
-  currency          String              @default("KRW")
-  /// 재고/판매 상태
-  availability      String?
-  /// 판매자명
-  sellerName        String?
+  price             Int
+  /// PLP 페이지 번호
+  listingPage       Int?
+  /// PLP 기준 전체 노출 순서
+  listingOrder      Int?
+  /// 리뷰 수
+  reviewCount       Int      @default(0)
+  /// 평균 별점
+  rating            Float?
+  /// 리뷰 요약
+  reviewSummary     String?
+  /// 목록/검색 결과에서 수집한 짧은 상품 소개
+  summary           String?
+  /// 상품 설명
+  description       String?
+  /// 상품 상세 이미지 URL 목록
+  descriptionImages Json     @default("[]")
+  /// 상품정보고시 key-value 목록
+  noticeItems       Json     @default("[]")
   /// 수집 상태
-  scrapeStatus      ProductScrapeStatus @default(PENDING)
-  /// 수집 시각
-  scrapedAt         DateTime?
-  /// 파싱 시각
-  parsedAt          DateTime?
-  /// 수집/파싱 에러
-  scrapeError       String?
-  /// 원본/보조 데이터
-  raw               Json?
-  /// 최초 발견 시각
-  firstSeenAt       DateTime            @default(now())
-  /// 마지막 발견 시각
-  lastSeenAt        DateTime            @default(now())
+  scrapeStatus      String   @default("READY")
   /// 생성 시각
-  createdAt         DateTime            @default(now())
+  createdAt         DateTime @default(now())
   /// 수정 시각
-  updatedAt         DateTime            @updatedAt
+  updatedAt         DateTime @default(now()) @updatedAt
 
-  master         ProductMaster      @relation(fields: [masterId], references: [id], onDelete: Cascade)
-  market         Market             @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  scrapedPage    ScrapedPage?       @relation(fields: [scrapedPageId], references: [id], onDelete: SetNull)
+  master         ProductMaster?     @relation(fields: [masterId], references: [id], onDelete: SetNull)
+  scrapeLog      ScrapeLog?         @relation(fields: [scrapeLogId], references: [id], onDelete: SetNull)
   inputLinks     ProductInputLink[]
   attributes     ProductAttribute[]
   relationsFrom  ProductRelation[]  @relation("ProductRelationSource")
   relationsTo    ProductRelation[]  @relation("ProductRelationTarget")
   outboundClicks OutboundClick[]
+  listings       ProductListing[]
 
-  @@unique([marketId, urlKey])
-  @@unique([marketId, externalProductNo])
-  @@unique([marketId, externalItemNo])
+  @@unique([marketName, marketProductNo])
   @@index([masterId])
-  @@index([marketId, scrapeStatus])
-  @@index([normalizedTitle])
-  @@index([brand])
+  @@index([marketName, scrapeStatus])
+  @@index([marketName, listingOrder])
+  @@index([marketName, marketItemNo])
+  @@index([name])
   @@map("products")
+}
+
+/// PLP/검색 결과의 정렬 기준별 상품 노출 순서
+model ProductListing {
+  /// 내부 ID
+  id              Int      @id @default(autoincrement())
+  /// 연결된 상품 ID
+  productId       Int?
+  /// 수집 로그 ID
+  scrapeLogId     Int?
+  /// 마켓 식별명(kurly, danawa 등)
+  marketName      String
+  /// 카테고리 번호
+  categoryNo      String
+  /// 카테고리명
+  categoryName    String?
+  /// 정렬 타입 코드
+  sortType        String
+  /// 정렬 타입명
+  sortName        String
+  /// 페이지 번호
+  page            Int
+  /// 페이지당 상품 수
+  perPage         Int
+  /// 페이지 내 노출 순서
+  pageOrder       Int
+  /// 정렬 기준별 전체 노출 순서
+  listingOrder    Int
+  /// 마켓 상품 번호
+  marketProductNo String
+  /// 상품 원본 URL
+  sourceUrl       String
+  /// 수집 시점 상품명
+  name            String
+  /// 수집 시점 판매가
+  price           Int
+  /// 생성 시각
+  createdAt       DateTime @default(now())
+  /// 수정 시각
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  product   Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  scrapeLog ScrapeLog? @relation(fields: [scrapeLogId], references: [id], onDelete: SetNull)
+
+  @@unique([marketName, categoryNo, sortType, marketProductNo])
+  @@unique([marketName, categoryNo, sortType, listingOrder])
+  @@index([productId])
+  @@index([marketName, categoryNo, sortType, page])
+  @@map("product_listings")
 }
 
 /// 외부 상품 링크 클릭 로그
 model OutboundClick {
   /// 내부 ID
-  id                String   @id @default(cuid())
+  id                Int      @id @default(autoincrement())
   /// 클릭한 사용자 ID
-  userId            String?
+  userId            Int?
   /// 클릭이 발생한 마스터 상품 ID
-  masterId          String?
+  masterId          Int?
   /// 클릭한 실제 상품 ID
-  productId         String?
+  productId         Int?
   /// 클릭한 상품의 마켓 ID
-  marketId          String?
+  marketId          Int?
   /// 외부 이동 URL
   url               String
   /// URL 집계용 정규화 키
@@ -418,7 +416,7 @@ model OutboundClick {
   /// 생성 시각
   createdAt         DateTime @default(now())
   /// 수정 시각
-  updatedAt         DateTime @updatedAt
+  updatedAt         DateTime @default(now()) @updatedAt
 
   user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   master  ProductMaster? @relation(fields: [masterId], references: [id], onDelete: SetNull)
@@ -436,9 +434,9 @@ model OutboundClick {
 /// 상품 속성/베네핏 key-value 데이터
 model ProductAttribute {
   /// 내부 ID
-  id          String               @id @default(cuid())
+  id          Int                  @id @default(autoincrement())
   /// 상품 ID
-  productId   String
+  productId   Int
   /// 속성/베네핏 구분
   kind        ProductAttributeKind @default(ATTRIBUTE)
   /// 속성 그룹
@@ -460,7 +458,7 @@ model ProductAttribute {
   /// 생성 시각
   createdAt   DateTime             @default(now())
   /// 수정 시각
-  updatedAt   DateTime             @updatedAt
+  updatedAt   DateTime             @default(now()) @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -472,13 +470,13 @@ model ProductAttribute {
 /// 동일 상품 또는 추천 상품 연결 관계
 model ProductRelation {
   /// 내부 ID
-  id              String              @id @default(cuid())
+  id              Int                 @id @default(autoincrement())
   /// 기준 마스터 상품 ID
-  masterId        String
+  masterId        Int
   /// 기준 상품 ID
-  sourceProductId String?
+  sourceProductId Int?
   /// 연결 대상 상품 ID
-  targetProductId String
+  targetProductId Int
   /// 동일 상품/추천 상품 구분
   kind            ProductRelationKind
   /// 유사도 점수
@@ -490,7 +488,7 @@ model ProductRelation {
   /// 생성 시각
   createdAt       DateTime            @default(now())
   /// 수정 시각
-  updatedAt       DateTime            @updatedAt
+  updatedAt       DateTime            @default(now()) @updatedAt
 
   master        ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
   sourceProduct Product?      @relation("ProductRelationSource", fields: [sourceProductId], references: [id], onDelete: SetNull)
@@ -504,11 +502,11 @@ model ProductRelation {
 /// 사용자가 저장한 상품 목록
 model UserProduct {
   /// 내부 ID
-  id          String            @id @default(cuid())
+  id          Int               @id @default(autoincrement())
   /// 사용자 ID
-  userId      String
+  userId      Int
   /// 저장한 마스터 상품 ID
-  masterId    String
+  masterId    Int
   /// 최초 입력 종류
   inputKind   ProductInputKind
   /// 최초 입력값
@@ -524,7 +522,7 @@ model UserProduct {
   /// 생성 시각
   createdAt   DateTime          @default(now())
   /// 수정 시각
-  updatedAt   DateTime          @updatedAt
+  updatedAt   DateTime          @default(now()) @updatedAt
 
   user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   master ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
@@ -537,9 +535,9 @@ model UserProduct {
 /// OpenAI 등 분석 실행 결과
 model ProductAnalysis {
   /// 내부 ID
-  id          String           @id @default(cuid())
+  id          Int              @id @default(autoincrement())
   /// 분석 대상 마스터 상품 ID
-  masterId    String
+  masterId    Int
   /// 분석 입력값
   sourceValue String
   /// 입력 종류
@@ -557,7 +555,7 @@ model ProductAnalysis {
   /// 생성 시각
   createdAt   DateTime         @default(now())
   /// 수정 시각
-  updatedAt   DateTime         @updatedAt
+  updatedAt   DateTime         @default(now()) @updatedAt
 
   master ProductMaster @relation(fields: [masterId], references: [id], onDelete: Cascade)
 

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "상품명이나 상품 링크를 분석해 자주 사는 상품을 저장하고, 동일 상품과 유사 추천 상품을 비교해드려요.",
+          "상품 상세 링크를 분석해 자주 사는 상품을 저장하고, 동일 상품과 유사 추천 상품을 비교해드려요.",
       },
     ],
   }),
@@ -48,6 +48,7 @@ function Index() {
   async function handleAddProduct(value: string) {
     const product = await analyzeFrequentProduct({ data: { value } });
     setProducts((prev) => [product, ...prev.filter((p) => p.id !== product.id)]);
+    return product.name;
   }
 
   return (

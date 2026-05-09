@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, ArrowRight, ShoppingBag } from "lucide-react";
+import { ArrowRight, Brain, LoaderCircle, Send, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CHAT_AGENT_ACTIVITY_LOGS, CHAT_COPY } from "@/lib/chat-copy";
+import { isSupportedProductDetailUrl } from "@/lib/product-types";
+
+const AGENT_STEP_MIN_MS = 1500;
+const AGENT_MIN_THINKING_MS = CHAT_AGENT_ACTIVITY_LOGS.length * AGENT_STEP_MIN_MS;
 
 type Message =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "loading"; text: string }
+  | { id: string; role: "loading"; activeStep: number }
   | { id: string; role: "assistant"; productName: string }
+  | { id: string; role: "notice"; text: string }
   | { id: string; role: "error"; text: string };
 
 type Props = {
-  onAddProduct: (name: string) => Promise<void>;
+  onAddProduct: (name: string) => Promise<string>;
   onGoToAnalysis: () => void;
 };
 
@@ -35,40 +41,62 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
     const value = input.trim();
     if (!value || busy) return;
     setInput("");
+    if (!isSupportedProductDetailUrl(value)) {
+      setMessages((m) => [
+        ...m,
+        { id: `u-${Date.now()}`, role: "user", text: value },
+        { id: `n-${Date.now()}`, role: "notice", text: CHAT_COPY.unsupportedProductUrl },
+      ]);
+      return;
+    }
     setBusy(true);
     const userId = `u-${Date.now()}`;
     const loadingId = `l-${Date.now()}`;
+    const stepTimers: ReturnType<typeof setTimeout>[] = [];
     setMessages((m) => [
       ...m,
       { id: userId, role: "user", text: value },
       {
         id: loadingId,
         role: "loading",
-        text: "상품을 분석하고 자주 사는 상품에 저장하고 있어요...",
+        activeStep: 0,
       },
     ]);
+    CHAT_AGENT_ACTIVITY_LOGS.slice(1).forEach((_, stepIndex) => {
+      stepTimers.push(
+        setTimeout(
+          () => {
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === loadingId && msg.role === "loading"
+                  ? { ...msg, activeStep: stepIndex + 1 }
+                  : msg,
+              ),
+            );
+          },
+          (stepIndex + 1) * AGENT_STEP_MIN_MS,
+        ),
+      );
+    });
     try {
-      await onAddProduct(value);
+      const [productName] = await Promise.all([onAddProduct(value), delay(AGENT_MIN_THINKING_MS)]);
       setMessages((m) =>
         m
           .filter((msg) => msg.id !== loadingId)
-          .concat({ id: `a-${Date.now()}`, role: "assistant", productName: value }),
+          .concat({ id: `a-${Date.now()}`, role: "assistant", productName }),
       );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "상품 분석 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.";
+    } catch {
       setMessages((m) =>
         m
           .filter((msg) => msg.id !== loadingId)
           .concat({
             id: `e-${Date.now()}`,
             role: "error",
-            text: message,
+            text: CHAT_COPY.retryRequested,
           }),
       );
     } finally {
+      stepTimers.forEach((timer) => clearTimeout(timer));
       setBusy(false);
     }
   }
@@ -90,24 +118,24 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
             return (
               <div key={m.id} className="flex justify-start gap-2">
                 <Avatar />
-                <div className="max-w-[80%] rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-2.5 shadow-sm">
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <span className="inline-flex gap-1">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
-                        style={{ animationDelay: "0ms" }}
-                      />
-                      <span
-                        className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
-                        style={{ animationDelay: "150ms" }}
-                      />
-                      <span
-                        className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"
-                        style={{ animationDelay: "300ms" }}
-                      />
+                <div className="max-w-[85%] space-y-2">
+                  <div className="rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
+                        <Brain className="h-4 w-4 text-primary" />
+                      </span>
+                      <span>{CHAT_COPY.analysisTitle}</span>
+                    </div>
+                  </div>
+                  <div className="ml-1 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                    <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                    <span>
+                      <span className="font-medium text-foreground">
+                        {CHAT_AGENT_ACTIVITY_LOGS[m.activeStep].label}
+                      </span>
+                      <span className="block">{CHAT_AGENT_ACTIVITY_LOGS[m.activeStep].detail}</span>
                     </span>
-                    {m.text}
-                  </p>
+                  </div>
                 </div>
               </div>
             );
@@ -117,7 +145,19 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
               <div key={m.id} className="flex justify-start gap-2">
                 <Avatar />
                 <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-destructive/10 border border-destructive/20 px-4 py-3 shadow-sm">
-                  <p className="text-sm leading-relaxed text-destructive">{m.text}</p>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-destructive">
+                    {m.text}
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          if (m.role === "notice") {
+            return (
+              <div key={m.id} className="flex justify-start gap-2">
+                <Avatar />
+                <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3 shadow-sm">
+                  <p className="text-sm leading-relaxed text-muted-foreground">{m.text}</p>
                 </div>
               </div>
             );
@@ -129,14 +169,15 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
                 <Avatar />
                 <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3 shadow-sm">
                   <p className="text-sm leading-relaxed">
-                    안녕하세요! 저는 <strong>장바구니 비서</strong>예요 🛍️
+                    {CHAT_COPY.welcome.intro} <strong>{CHAT_COPY.welcome.assistantName}</strong>
+                    {CHAT_COPY.welcome.suffix}
                     <br />
                     <br />
-                    상품명이나 상품 링크를 보내주시면 분석해서 자주 사는 상품에 저장해둘게요.
+                    {CHAT_COPY.welcome.instruction}
                     <br />
-                    항상 더 잘 살수 있도록 도와드립니다.
+                    {CHAT_COPY.welcome.promise}
                     <br />
-                    (현재는 마켓컬리만 지원을 하고 있어요)
+                    {CHAT_COPY.welcome.supportedMarket}
                   </p>
                 </div>
               </div>
@@ -147,14 +188,15 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
               <Avatar />
               <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-card border border-border px-4 py-3 shadow-sm space-y-3">
                 <p className="text-sm leading-relaxed">
-                  ✅ <strong>{m.productName}</strong> 분석 완료!
+                  <strong>{m.productName}</strong> {CHAT_COPY.completion.registeredSuffix}
+                  <br />
                   <br />
                   <span className="text-muted-foreground">
-                    자주 사는 상품 탭에서 결과를 확인하세요
+                    {CHAT_COPY.completion.trackingPromise}
                   </span>
                 </p>
                 <Button size="sm" onClick={onGoToAnalysis} className="rounded-full text-xs h-8">
-                  결과 보기 <ArrowRight className="h-3 w-3 ml-1" />
+                  {CHAT_COPY.completion.action} <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </div>
             </div>
@@ -169,7 +211,7 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="상품명 또는 상품 링크를 입력하세요"
+          placeholder={CHAT_COPY.input.placeholder}
           disabled={busy}
           className="rounded-full bg-background border-border h-11 px-4 text-sm"
         />
@@ -177,13 +219,17 @@ export function ChatTab({ onAddProduct, onGoToAnalysis }: Props) {
           type="submit"
           disabled={busy || !input.trim()}
           className="rounded-full h-11 w-11 p-0 shrink-0"
-          aria-label="전송"
+          aria-label={CHAT_COPY.input.submitLabel}
         >
           <Send className="h-4 w-4" />
         </Button>
       </form>
     </div>
   );
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function Avatar() {

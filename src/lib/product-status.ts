@@ -1,0 +1,22 @@
+export const PRODUCT_SCRAPE_STATUS = {
+  READY: "READY",
+  LIST_COLLECTED: "LIST_COLLECTED",
+  DETAIL_WAITING: "DETAIL_WAITING",
+  DETAIL_COLLECTED: "DETAIL_COLLECTED",
+  OCR_COLLECTED: "OCR_COLLECTED",
+  ATTRIBUTE_COLLECTED: "ATTRIBUTE_COLLECTED",
+  FAILED: "FAILED",
+} as const;
+
+export type ProductScrapeStatus =
+  (typeof PRODUCT_SCRAPE_STATUS)[keyof typeof PRODUCT_SCRAPE_STATUS];
+
+export const PRODUCT_SCRAPE_STATUS_LABEL: Record<ProductScrapeStatus, string> = {
+  READY: "수집 준비",
+  LIST_COLLECTED: "목록 수집 완료",
+  DETAIL_WAITING: "상세 수집 대기",
+  DETAIL_COLLECTED: "상세 수집 완료",
+  OCR_COLLECTED: "OCR 수집 완료",
+  ATTRIBUTE_COLLECTED: "속성 수집 완료",
+  FAILED: "수집 실패",
+};

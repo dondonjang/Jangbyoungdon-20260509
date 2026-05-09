@@ -1,4 +1,8 @@
 import type { MarketConfig, ResolvedMarketRequest } from "@/lib/market-types";
+import {
+  KURLY_DEFAULT_PER_PAGE,
+  KURLY_DEFAULT_SORT_TYPE,
+} from "@/server/services/scrape/kurly-collector";
 import type { MarketRequestResolver } from "@/server/services/market/types";
 
 function getRequiredHeaders(market: MarketConfig) {
@@ -26,9 +30,14 @@ export const resolveKurlyRequest: MarketRequestResolver = (market, url) => {
   if (categoryMatch) {
     const categoryNo = categoryMatch[1];
     const page = readPositiveInt(url.searchParams.get("page"), 1);
-    const perPage = Math.min(readPositiveInt(url.searchParams.get("per_page"), 96), 100);
+    const perPage = Math.min(
+      readPositiveInt(url.searchParams.get("per_page"), KURLY_DEFAULT_PER_PAGE),
+      100,
+    );
     const sortType =
-      url.searchParams.get("sorted_type") || url.searchParams.get("sort_type") || "4";
+      url.searchParams.get("sorted_type") ||
+      url.searchParams.get("sort_type") ||
+      KURLY_DEFAULT_SORT_TYPE;
     const filters = url.searchParams.get("filters") || "";
     const endpointTemplate = market.scrapeStrategy.plp.endpointTemplate;
 

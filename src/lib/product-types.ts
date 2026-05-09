@@ -43,6 +43,18 @@ export function detectProductInputKind(value: string): ProductInputKind {
   }
 }
 
+export function isSupportedProductDetailUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+    const isKurlyHost = url.hostname === "www.kurly.com" || url.hostname.endsWith(".kurly.com");
+    return isKurlyHost && /^\/goods\/[^/?#]+\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function formatKRW(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
