@@ -10,6 +10,21 @@
 - 현재 테스트 기준 유저는 `id=1`로 고정되어 있습니다.
 - 컬리 상품 상세 링크를 입력하면 상품 등록 후 `자주 사는 상품` 화면에서 수집/분석 상태와 추천 결과를 확인할 수 있습니다.
 
+## 기술 스펙
+
+| 구분 | 사용 기술 | 설명 |
+| --- | --- | --- |
+| Frontend | Lovable, React 19, TanStack Start, TanStack Router | Lovable로 초기 화면 방향을 잡고, React/TanStack 기반으로 실제 앱 구조를 구현했습니다. |
+| Styling | Tailwind CSS v4, shadcn/Radix UI, lucide-react | 빠른 구현과 일관된 UI 구성을 위해 컴포넌트 기반으로 구성했습니다. |
+| Backend | TanStack Start API Routes, Vercel Node Runtime | 상품 등록, 저장 상품 조회, 수집 크론 API를 Vercel에서 실행되는 서버 코드로 구성했습니다. |
+| Database | PostgreSQL, Prisma | 사용자 저장 상품, 가격 비교 링크, 수집 로그, AI 요청 로그를 관리합니다. |
+| AI | OpenAI API | 상품명 정제, 상품 속성 추출, 검색 키워드 생성, OCR 후보 처리에 사용합니다. |
+| Scraping | Kurly, Danawa 수집기 | 컬리 PLP/PDP와 다나와 SRP/카탈로그 데이터를 수집합니다. |
+| Batch | Vercel Cron | 가격 비교 상품과 다른 사용자 관심 상품 후보를 주기적으로 보강합니다. |
+| Package/Build | Bun, Vite | 로컬 개발, 빌드, 의존성 관리를 담당합니다. |
+
+주요 환경 변수는 `DATABASE_URL`, `DIRECT_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `CRON_SECRET`입니다.
+
 ## 실행 방법
 
 ```bash
