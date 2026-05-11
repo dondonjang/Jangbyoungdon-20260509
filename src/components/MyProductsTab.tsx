@@ -367,10 +367,17 @@ function PopularProductGroup({ products }: { products: OtherUserInterestProductV
 
   return (
     <section>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {visibleProducts.map((product) => (
-          <PopularProductCard key={product.id} product={product} />
-        ))}
+      <div className="-mx-5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:overflow-visible md:px-0 md:pb-0">
+        <div className="flex snap-x snap-mandatory gap-3 md:grid md:grid-cols-3">
+          {visibleProducts.map((product) => (
+            <div
+              key={product.id}
+              className="min-w-0 basis-[calc((100%-0.75rem)/2)] shrink-0 snap-start md:basis-auto md:shrink"
+            >
+              <PopularProductCard product={product} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
